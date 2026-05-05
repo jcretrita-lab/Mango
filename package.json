@@ -1,0 +1,8 @@
+{
+  "name": "diwa-hris-workspace",
+  "private": true,
+  "scripts": {
+    "docs:map": "node scripts/generate-system-map.mjs",
+    "docs:map:watch": "node scripts/generate-system-map.mjs --watch"
+  }
+}
