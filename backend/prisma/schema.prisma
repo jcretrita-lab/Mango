@@ -13,15 +13,19 @@ model User {
   firstName                  String
   lastName                   String
   displayName                String
+  employeeId                 Int?                                @unique
+  employee                   Employee?                           @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   status                     String                              @default("ACTIVE")
   isActive                   Boolean                             @default(true)
   createdAt                  DateTime                            @default(now())
   createdBy                  Int                                 @default(1)
   updatedAt                  DateTime                            @updatedAt
   updatedBy                  Int                                 @default(1)
+  credential                 UserCredential?
   sessions                   UserSession[]
   authTokens                 UserAuthToken[]
   roleAssignments            UserRoleAssignment[]
+  auditEvents                AuditEvent[]                        @relation("AuditActor")
   delegationsFrom            ApprovalDelegation[]                @relation("DelegationFrom")
   delegationsTo              ApprovalDelegation[]                @relation("DelegationTo")
   requestedApprovals         ApprovalRequest[]
@@ -29,6 +33,26 @@ model User {
   workflowNotes              ApprovalWorkflowNote[]
   approverSequences          ApproverSequence[]
   secondaryApproverSequences ApprovalSequenceSecondaryApprover[]
+
+  @@index([status, isActive])
+  @@index([employeeId])
+}
+
+model UserCredential {
+  id                 Int       @id @default(autoincrement())
+  userId             Int       @unique
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash       String
+  passwordUpdatedAt  DateTime  @default(now())
+  mustChangePassword Boolean   @default(false)
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+  createdAt          DateTime  @default(now())
+  createdBy          Int       @default(1)
+  updatedAt          DateTime  @updatedAt
+  updatedBy          Int       @default(1)
+
+  @@index([lockedUntil])
 }
 
 model UserSession {
@@ -40,10 +64,14 @@ model UserSession {
   ipAddress  String?
   lastSeenAt DateTime?
   expiresAt  DateTime?
+  revokedAt  DateTime?
   createdAt  DateTime  @default(now())
   createdBy  Int       @default(1)
   updatedAt  DateTime  @updatedAt
   updatedBy  Int       @default(1)
+
+  @@index([userId, status, expiresAt])
+  @@index([status, expiresAt])
 }
 
 model UserAuthToken {
@@ -58,6 +86,8 @@ model UserAuthToken {
   createdBy  Int       @default(1)
   updatedAt  DateTime  @updatedAt
   updatedBy  Int       @default(1)
+
+  @@index([userId, tokenType, consumedAt])
 }
 
 model Role {
@@ -165,6 +195,7 @@ model UserRoleAssignment {
   roleId     Int
   role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
   isActive   Boolean  @default(true)
+  isPrimary  Boolean  @default(false)
   assignedAt DateTime @default(now())
   createdAt  DateTime @default(now())
   createdBy  Int      @default(1)
@@ -172,6 +203,8 @@ model UserRoleAssignment {
   updatedBy  Int      @default(1)
 
   @@unique([userId, roleId])
+  @@index([userId, isActive])
+  @@index([roleId, isActive])
 }
 
 model RolePermissionAssignment {
@@ -197,6 +230,27 @@ model RolePermissionAssignment {
   updatedBy                      Int                           @default(1)
 
   @@index([roleId, permissionId])
+  @@index([roleId, isActive])
+  @@index([permissionId, isActive])
+  @@index([systemModuleId])
+}
+
+model AuditEvent {
+  id           Int      @id @default(autoincrement())
+  actorUserId  Int?
+  actor        User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  eventType    String
+  entityType   String?
+  entityId     String?
+  route        String?
+  ipAddress    String?
+  userAgent    String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([entityType, entityId])
 }
 
 model CompanyProfile {
@@ -232,6 +286,8 @@ model HierarchyLevel {
   updatedBy       Int              @default(1)
   orgUnits        OrgUnit[]
   orgUnitVersions OrgUnitVersion[]
+
+  @@unique([levelNo])
 }
 
 model Site {
@@ -271,6 +327,9 @@ model OrgUnit {
   ancestorOf       OrgUnitClosure[] @relation("OrgUnitAncestors")
   descendantOf     OrgUnitClosure[] @relation("OrgUnitDescendants")
   positions        Position[]
+
+  @@index([parentOrgUnitId, isActive])
+  @@index([hierarchyLevelId, isActive])
 }
 
 model OrgUnitClosure {
@@ -307,6 +366,8 @@ model OrgUnitVersion {
   createdBy          Int            @default(1)
   updatedAt          DateTime       @updatedAt
   updatedBy          Int            @default(1)
+
+  @@index([orgUnitId, isCurrent, effectiveStartDate])
 }
 
 model Rank {
@@ -321,6 +382,8 @@ model Rank {
   updatedBy        Int               @default(1)
   levels           RankLevel[]
   positionProfiles PositionProfile[]
+
+  @@unique([name])
 }
 
 model RankLevel {
@@ -334,6 +397,9 @@ model RankLevel {
   updatedAt        DateTime          @updatedAt
   updatedBy        Int               @default(1)
   positionProfiles PositionProfile[]
+
+  @@unique([rankId, code])
+  @@unique([rankId, sortOrder])
 }
 
 model SalaryGrade {
@@ -368,6 +434,8 @@ model SalaryGradeStep {
   updatedAt     DateTime    @updatedAt
   updatedBy     Int         @default(1)
   positions     Position[]
+
+  @@unique([salaryGradeId, stepNumber])
 }
 
 model PositionTemplate {
@@ -381,6 +449,8 @@ model PositionTemplate {
   updatedAt        DateTime          @updatedAt
   updatedBy        Int               @default(1)
   positionProfiles PositionProfile[]
+
+  @@unique([name])
 }
 
 model PositionProfile {
@@ -401,6 +471,8 @@ model PositionProfile {
   updatedBy            Int                @default(1)
   subLevels            PositionSubLevel[]
   positions            Position[]
+
+  @@unique([positionTemplateId, label])
 }
 
 model PositionSubLevel {
@@ -416,6 +488,8 @@ model PositionSubLevel {
   updatedAt         DateTime        @updatedAt
   updatedBy         Int             @default(1)
   positions         Position[]
+
+  @@unique([positionProfileId, sortOrder])
 }
 
 model Position {
@@ -490,6 +564,7 @@ model Employee {
   createdBy                   Int                         @default(1)
   updatedAt                   DateTime                    @updatedAt
   updatedBy                   Int                         @default(1)
+  user                        User?
   profile                     EmployeeProfile?
   employments                 Employment[]
   educationRecords            EducationRecord[]
@@ -507,6 +582,8 @@ model Employee {
   payProfiles                 EmployeePayProfile[]
   assignments                 PositionAssignment[]        @relation("EmployeeAssignments")
   approvalsRequested          ApprovalRequest[]
+
+  @@index([status, jobType])
 }
 
 model Employment {
@@ -562,6 +639,8 @@ model EducationRecord {
   createdBy     Int       @default(1)
   updatedAt     DateTime  @updatedAt
   updatedBy     Int       @default(1)
+
+  @@index([employeeId])
 }
 
 model ExamRecord {
@@ -576,6 +655,8 @@ model ExamRecord {
   createdBy   Int       @default(1)
   updatedAt   DateTime  @updatedAt
   updatedBy   Int       @default(1)
+
+  @@index([employeeId])
 }
 
 model EmploymentHistoryRecord {
@@ -592,6 +673,8 @@ model EmploymentHistoryRecord {
   createdBy  Int       @default(1)
   updatedAt  DateTime  @updatedAt
   updatedBy  Int       @default(1)
+
+  @@index([employeeId])
 }
 
 model ReferenceContact {
@@ -608,6 +691,8 @@ model ReferenceContact {
   createdBy  Int      @default(1)
   updatedAt  DateTime @updatedAt
   updatedBy  Int      @default(1)
+
+  @@index([employeeId])
 }
 
 model FamilyMember {
@@ -624,6 +709,8 @@ model FamilyMember {
   createdBy    Int       @default(1)
   updatedAt    DateTime  @updatedAt
   updatedBy    Int       @default(1)
+
+  @@index([employeeId])
 }
 
 model EmergencyContact {
@@ -639,6 +726,8 @@ model EmergencyContact {
   createdBy    Int      @default(1)
   updatedAt    DateTime @updatedAt
   updatedBy    Int      @default(1)
+
+  @@index([employeeId])
 }
 
 model PisTab {
@@ -737,6 +826,8 @@ model EmployeeFieldValueHistory {
   createdBy            Int                @default(1)
   updatedAt            DateTime           @updatedAt
   updatedBy            Int                @default(1)
+
+  @@index([employeeFieldValueId, changedAt])
 }
 
 model EmployeeOnboardingRecord {
@@ -751,6 +842,8 @@ model EmployeeOnboardingRecord {
   createdBy          Int       @default(1)
   updatedAt          DateTime  @updatedAt
   updatedBy          Int       @default(1)
+
+  @@index([employeeId, status])
 }
 
 model EmployeeOffboardingRecord {
@@ -765,6 +858,8 @@ model EmployeeOffboardingRecord {
   createdBy       Int       @default(1)
   updatedAt       DateTime  @updatedAt
   updatedBy       Int       @default(1)
+
+  @@index([employeeId, clearanceStatus])
 }
 
 model PafRecord {
@@ -806,6 +901,8 @@ model EmployeeLoaRecord {
   createdBy               Int        @default(1)
   updatedAt               DateTime   @updatedAt
   updatedBy               Int        @default(1)
+
+  @@index([employeeId, startDate, actualReturnDate])
 }
 
 model EmployeeProfileHistory {
@@ -826,6 +923,8 @@ model EmployeeProfileHistory {
   createdBy     Int        @default(1)
   updatedAt     DateTime   @updatedAt
   updatedBy     Int        @default(1)
+
+  @@index([employeeId, changedAt])
 }
 
 model Formula {
@@ -857,6 +956,9 @@ model FormulaVersion {
   updatedAt          DateTime           @updatedAt
   updatedBy          Int                @default(1)
   earningComponents  EarningComponent[]
+
+  @@unique([formulaId, versionNo])
+  @@index([formulaId, isCurrent, effectiveStartDate])
 }
 
 model EarningComponent {
@@ -915,6 +1017,8 @@ model EarningTemplateFamilyScope {
   createdBy               Int                   @default(1)
   updatedAt               DateTime              @updatedAt
   updatedBy               Int                   @default(1)
+
+  @@index([scopeType, scopeRefId, isPrimary])
 }
 
 model EarningTemplateRevision {
@@ -932,6 +1036,9 @@ model EarningTemplateRevision {
   updatedAt               DateTime                      @updatedAt
   updatedBy               Int                           @default(1)
   lines                   EarningTemplateRevisionLine[]
+
+  @@unique([earningTemplateFamilyId, versionNo])
+  @@index([earningTemplateFamilyId, isCurrent, effectiveStartDate])
 }
 
 model EarningTemplateRevisionLine {
@@ -946,6 +1053,8 @@ model EarningTemplateRevisionLine {
   createdBy                 Int                     @default(1)
   updatedAt                 DateTime                @updatedAt
   updatedBy                 Int                     @default(1)
+
+  @@unique([earningTemplateRevisionId, earningComponentId])
 }
 
 model EmployeePayProfile {
@@ -966,6 +1075,9 @@ model EmployeePayProfile {
   createdBy               Int                   @default(1)
   updatedAt               DateTime              @updatedAt
   updatedBy               Int                   @default(1)
+
+  @@index([employeeId, status, effectiveStartDate])
+  @@index([earningTemplateFamilyId, status])
 }
 
 model ApprovalSetup {
@@ -1026,6 +1138,10 @@ model ApprovalSequenceSecondaryApprover {
   createdBy          Int              @default(1)
   updatedAt          DateTime         @updatedAt
   updatedBy          Int              @default(1)
+
+  @@index([userId])
+  @@index([roleId])
+  @@index([positionId])
 }
 
 model ApprovalDelegation {
@@ -1042,6 +1158,9 @@ model ApprovalDelegation {
   createdBy  Int      @default(1)
   updatedAt  DateTime @updatedAt
   updatedBy  Int      @default(1)
+
+  @@index([fromUserId, toUserId, status, startDate, endDate])
+  @@index([toUserId, status, startDate, endDate])
 }
 
 model WorkflowAssignment {
@@ -1057,6 +1176,9 @@ model WorkflowAssignment {
   createdBy       Int           @default(1)
   updatedAt       DateTime      @updatedAt
   updatedBy       Int           @default(1)
+
+  @@unique([scopeType, scopeRefId, approvalSetupId])
+  @@index([scopeType, scopeRefId, isActive, priority])
 }
 
 model ApprovalRequest {
@@ -1081,6 +1203,11 @@ model ApprovalRequest {
   workflows         ApprovalWorkflow[]
   pafRecords        PafRecord[]
   payProfiles       EmployeePayProfile[]
+
+  @@index([employeeId, status])
+  @@index([requestedByUserId, status])
+  @@index([status, currentStepNo])
+  @@index([referenceType, referenceId])
 }
 
 model ApprovalWorkflow {
@@ -1099,6 +1226,10 @@ model ApprovalWorkflow {
   updatedAt          DateTime               @updatedAt
   updatedBy          Int                    @default(1)
   workflowNotes      ApprovalWorkflowNote[]
+
+  @@unique([approvalRequestId, approverSequenceId])
+  @@index([approvalRequestId, status])
+  @@index([approverUserId, status])
 }
 
 model ApprovalWorkflowNote {
@@ -1113,4 +1244,7 @@ model ApprovalWorkflowNote {
   createdBy          Int              @default(1)
   updatedAt          DateTime         @updatedAt
   updatedBy          Int              @default(1)
+
+  @@index([approvalWorkflowId, createdAt])
+  @@index([authorUserId, createdAt])
 }

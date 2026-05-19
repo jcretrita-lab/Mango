@@ -6,6 +6,9 @@ import { AppModule } from './app.module';
 
 const bootstrapLogger = new Logger('Bootstrap');
 
+/**
+ * Formats startup failures for the Bootstrap logger; used only by bootstrap().catch before the app can serve requests.
+ */
 function formatBootstrapError(error: unknown): string {
   if (error instanceof Error) {
     return error.stack ?? error.message;
@@ -14,6 +17,9 @@ function formatBootstrapError(error: unknown): string {
   return String(error);
 }
 
+/**
+ * Creates the Nest app, applies shared HTTP configuration from app.bootstrap.ts, and starts listening on the configured port.
+ */
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);

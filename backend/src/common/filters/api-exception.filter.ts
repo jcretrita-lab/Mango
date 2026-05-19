@@ -13,10 +13,16 @@ interface HttpErrorResponseBody {
   message?: string | string[];
 }
 
+/**
+ * Narrows unknown exception responses so normalizeHttpResponseBody can safely inspect their fields.
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
 }
 
+/**
+ * Converts Nest exception response bodies into the consistent message/error shape returned by ApiExceptionFilter.
+ */
 function normalizeHttpResponseBody(value: unknown): HttpErrorResponseBody {
   if (typeof value === 'string') {
     return { message: value };
@@ -41,6 +47,9 @@ function normalizeHttpResponseBody(value: unknown): HttpErrorResponseBody {
 export class ApiExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ApiExceptionFilter.name);
 
+  /**
+   * Catches errors from controllers/services, logs them, and sends a consistent JSON response to API clients.
+   */
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();

@@ -13,9 +13,13 @@ import {
   CORS_ORIGINS_CONFIG_KEY,
   DEFAULT_PORT,
   PORT_CONFIG_KEY,
+  SWAGGER_ENABLED_CONFIG_KEY,
   type EnvironmentConfiguration,
 } from './config/configuration';
 
+/**
+ * Applies global HTTP behavior for every module: CORS, /api prefix, error formatting, DTO validation, and Swagger docs.
+ */
 export function configureApp(app: INestApplication): void {
   const configService = app.get(ConfigService<EnvironmentConfiguration>);
   const corsOrigins =
@@ -33,26 +37,31 @@ export function configureApp(app: INestApplication): void {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: false,
+      forbidNonWhitelisted: true,
       transform: true,
     }),
   );
 
-  SwaggerModule.setup(
-    API_DOCS_PATH,
-    app,
-    SwaggerModule.createDocument(
+  if (configService.get<boolean>(SWAGGER_ENABLED_CONFIG_KEY) === true) {
+    SwaggerModule.setup(
+      API_DOCS_PATH,
       app,
-      new DocumentBuilder()
-        .setTitle(API_TITLE)
-        .setDescription(API_DESCRIPTION)
-        .setVersion(API_VERSION)
-        .addBearerAuth()
-        .build(),
-    ),
-  );
+      SwaggerModule.createDocument(
+        app,
+        new DocumentBuilder()
+          .setTitle(API_TITLE)
+          .setDescription(API_DESCRIPTION)
+          .setVersion(API_VERSION)
+          .addBearerAuth()
+          .build(),
+      ),
+    );
+  }
 }
 
+/**
+ * Resolves the runtime port from ConfigService so main.ts can start the Nest server consistently with configuration.ts.
+ */
 export function getAppPort(
   configService: ConfigService<EnvironmentConfiguration>,
 ): number {

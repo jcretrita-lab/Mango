@@ -1,4 +1,4 @@
-export type UserRole = 'Superadmin' | 'Approver' | 'Employee';
+export type UserRole = "Superadmin" | "Approver" | "Employee";
 
 export interface User {
   id: string;
@@ -6,14 +6,9 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  roles?: UserRole[];
   employeeId?: string;
   permissions: string[];
   encryptedSignature?: string;
 }
 
-export interface DemoAccount {
-  role: UserRole;
-  displayName: string;
-  email: string;
-  description: string;
-}

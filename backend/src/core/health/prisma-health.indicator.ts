@@ -8,10 +8,16 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class PrismaHealthIndicator extends HealthIndicator {
+  /**
+   * Receives PrismaService so the health indicator can verify the same database connection used by repositories.
+   */
   constructor(private readonly prisma: PrismaService) {
     super();
   }
 
+  /**
+   * Runs a lightweight SELECT 1 through PrismaService so HealthController can report database availability.
+   */
   async isHealthy(key: string): Promise<HealthIndicatorResult> {
     try {
       await this.prisma.$queryRaw`SELECT 1`;

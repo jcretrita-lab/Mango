@@ -14,6 +14,9 @@ import {
 
 const now = "2026-04-05T09:00:00+08:00";
 
+/**
+ * Combines names for personnel mock records that feed dummy-data.ts PIS/personnel seed transformation.
+ */
 const createDisplayName = (firstName: string, lastName: string) => `${firstName} ${lastName}`.trim();
 
 const employees: PersonnelEmployee[] = [

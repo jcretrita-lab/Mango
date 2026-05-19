@@ -27,12 +27,18 @@ const RANK_ADD_ONS: Record<string, string[]> = {
   'r-x': ['pc-lead', 'pc-rep', 'pc-car', 'pc-hous']
 };
 
+/**
+ * Extracts the numeric salary-grade level used by resolveFamily to classify compensation packages.
+ */
 const getGradeNumber = (gradeId?: string): number => {
   if (!gradeId) return 0;
   const match = gradeId.match(/sg-(\d+)/i);
   return match ? Number(match[1]) : 0;
 };
 
+/**
+ * Chooses the compensation family that drives default component selection for generated pay templates.
+ */
 const resolveFamily = (gradeId?: string, rankId?: string): CompensationFamily => {
   if (rankId === 'r-x') return 'executive';
 
@@ -47,6 +53,9 @@ const resolveFamily = (gradeId?: string, rankId?: string): CompensationFamily =>
   return 'support';
 };
 
+/**
+ * Finds the rank position definition, including leveled rank positions, for generateTemplates.
+ */
 const getRankPosition = (rank: Rank, rankPositionId?: string): RankPosition | undefined => {
   if (!rankPositionId) return undefined;
 
@@ -64,6 +73,9 @@ const getRankPosition = (rank: Rank, rankPositionId?: string): RankPosition | un
   return undefined;
 };
 
+/**
+ * Builds the component id list for a pay template and filters it against ENTERPRISE_PAY_COMPONENTS.
+ */
 const buildComponents = (family: CompensationFamily, rankId?: string): string[] => {
   const familyComponents = FAMILY_COMPONENTS[family];
   const rankAddOns = rankId ? RANK_ADD_ONS[rankId] || [] : [];
@@ -73,11 +85,17 @@ const buildComponents = (family: CompensationFamily, rankId?: string): string[] 
   ).filter(componentId => VALID_COMPONENT_IDS.has(componentId));
 };
 
+/**
+ * Chooses a base pay from the salary grade when available, falling back to the position default amount.
+ */
 const resolveBasePay = (positionDefaultBasePay: number, salaryGradeId?: string): number => {
   const grade = MOCK_GRADES.find(item => item.id === salaryGradeId);
   return grade?.amount || positionDefaultBasePay;
 };
 
+/**
+ * Creates display names for generated pay templates used later by dummy-data.ts earning template families.
+ */
 const buildTemplateName = (positionTitle: string, step?: SubLevelStep): string => {
   if (step) {
     return `${positionTitle} - ${step.name} Compensation Package`;
@@ -86,6 +104,9 @@ const buildTemplateName = (positionTitle: string, step?: SubLevelStep): string =
   return `${positionTitle} Standard Package`;
 };
 
+/**
+ * Generates one or more pay templates per position, including sub-level variants, for enterprise pay seed data.
+ */
 const generateTemplates = (): PayTemplate[] => {
   const templates: PayTemplate[] = [];
 

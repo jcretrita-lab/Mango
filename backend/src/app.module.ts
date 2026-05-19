@@ -6,7 +6,7 @@ import { HealthModule } from './core/health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { PrismaModule } from './core/prisma/prisma.module';
-import { RolesGuard } from './common/guards/roles.guard';
+import { PermissionsGuard } from './common/guards/permissions.guard';
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { OrgStructureModule } from './modules/org-structure/org-structure.module';
@@ -41,7 +41,7 @@ const phaseOneMountedModules = [
     },
     {
       provide: APP_GUARD,
-      useClass: RolesGuard,
+      useClass: PermissionsGuard,
     },
     {
       provide: APP_INTERCEPTOR,

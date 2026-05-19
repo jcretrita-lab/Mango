@@ -21,8 +21,14 @@ import {
   MOCK_RANKS_SCHOOL,
 } from "./schoolMockData";
 
+/**
+ * Deep-clones source mock data before builders annotate it for seed output consumed by dummy-data.ts.
+ */
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
+/**
+ * Creates stable lowercase ids for generated hierarchy levels and position templates.
+ */
 const slugify = (value: string) =>
   value
     .toLowerCase()
@@ -30,6 +36,9 @@ const slugify = (value: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 48) || "item";
 
+/**
+ * Deduplicates ids while preserving order for salary grades and valid grade lists.
+ */
 const unique = <T,>(values: T[]) => Array.from(new Set(values));
 
 const DEFAULT_SALARY_GRADES: SalaryGrade[] = [
@@ -53,6 +62,9 @@ const DEFAULT_SALARY_GRADES: SalaryGrade[] = [
   { id: "sg-18", code: "SG-18", name: "C-Suite / Chief", rateType: "fixed", type: "ALIGNED", minSalary: 850000, maxSalary: 850000, currency: "PHP", steps: [] },
 ];
 
+/**
+ * Resolves the default/base pay for a grade so normalized grades and pay templates share one amount rule.
+ */
 export const getGradeBaseAmount = (grade?: SalaryGrade) => {
   if (!grade) return 0;
   if (typeof grade.amount === "number") return grade.amount;
@@ -60,6 +72,9 @@ export const getGradeBaseAmount = (grade?: SalaryGrade) => {
   return grade.minSalary || 0;
 };
 
+/**
+ * Fills missing salary grade fields before job architecture data is transformed into Prisma seed rows.
+ */
 const normalizeGrade = (grade: SalaryGrade): SalaryGrade => {
   const rateType =
     grade.rateType ||
@@ -83,6 +98,9 @@ const normalizeGrade = (grade: SalaryGrade): SalaryGrade => {
   return next;
 };
 
+/**
+ * Removes nested position definitions from ranks after position templates have been generated from them.
+ */
 const stripRankDefinitions = (ranks: Rank[]): Rank[] =>
   ranks.map((rank) => ({
     id: rank.id,
@@ -101,6 +119,9 @@ const stripRankDefinitions = (ranks: Rank[]): Rank[] =>
         : undefined,
   }));
 
+/**
+ * Converts corporate unit-type metadata into hierarchy levels used by org-unit seed records.
+ */
 const buildHierarchyLevelsFromTypes = (
   types: { id: string; name: string; level: number }[]
 ): HierarchyLevel[] =>
@@ -112,8 +133,14 @@ const buildHierarchyLevelsFromTypes = (
     }))
     .sort((a, b) => a.order - b.order);
 
+/**
+ * Infers hierarchy levels from school org-unit depth when no separate unit-type catalog exists.
+ */
 const buildHierarchyLevelsFromOrgUnits = (orgUnits: OrgUnit[]): HierarchyLevel[] => {
   const seen = new Map<string, HierarchyLevel>();
+  /**
+   * Recursively walks org units to collect unique type/depth pairs for school hierarchy generation.
+   */
   const walk = (units: OrgUnit[], depth: number) => {
     units.forEach((unit) => {
       const key = unit.type.toLowerCase();
@@ -131,10 +158,16 @@ const buildHierarchyLevelsFromOrgUnits = (orgUnits: OrgUnit[]): HierarchyLevel[]
   return Array.from(seen.values()).sort((a, b) => a.order - b.order);
 };
 
+/**
+ * Adds hierarchyLevelId references to org units so dummy-data.ts can map them into Prisma foreign keys.
+ */
 const annotateHierarchyLevels = (orgUnits: OrgUnit[], hierarchyLevels: HierarchyLevel[]): OrgUnit[] => {
   const levelLookup = new Map(
     hierarchyLevels.map((level) => [level.name.toLowerCase(), level.id])
   );
+  /**
+   * Recursively copies org units while attaching the hierarchy level id to each node.
+   */
   const apply = (units: OrgUnit[]): OrgUnit[] =>
     units.map((unit) => ({
       ...unit,
@@ -144,10 +177,16 @@ const annotateHierarchyLevels = (orgUnits: OrgUnit[], hierarchyLevels: Hierarchy
   return apply(orgUnits);
 };
 
+/**
+ * Converts legacy rank position definitions into reusable position templates and profile mappings.
+ */
 const buildPositionTemplatesFromRanks = (ranks: Rank[]) => {
   const templateMap = new Map<string, PositionTemplate>();
   const legacyProfileMap = new Map<string, { templateId: string; profileId: string }>();
 
+  /**
+   * Reuses or creates a template for a position name so profiles connect under one template.
+   */
   const ensureTemplate = (name: string, rankName?: string) => {
     const key = name.toLowerCase();
     const existing = templateMap.get(key);
@@ -162,6 +201,9 @@ const buildPositionTemplatesFromRanks = (ranks: Rank[]) => {
     return template;
   };
 
+  /**
+   * Adds one profile under a template and records how legacy rank position ids map to generated profile ids.
+   */
   const addProfile = (
     template: PositionTemplate,
     rank: Rank,
@@ -224,6 +266,9 @@ const buildPositionTemplatesFromRanks = (ranks: Rank[]) => {
   };
 };
 
+/**
+ * Adds generated template/profile references to positions so downstream seed transforms can create Position rows.
+ */
 const annotatePositions = (
   positions: Position[],
   legacyProfileMap: Map<string, { templateId: string; profileId: string }>
@@ -242,6 +287,9 @@ const annotatePositions = (
     };
   });
 
+/**
+ * Builds school-mode salary grades from school positions for the optional school job-architecture seed.
+ */
 const buildSchoolGrades = (): SalaryGrade[] => {
   const defaultGrades = new Map(DEFAULT_SALARY_GRADES.map((grade) => [grade.id, normalizeGrade(grade)]));
   const gradeIds = unique(
@@ -280,6 +328,9 @@ const buildSchoolGrades = (): SalaryGrade[] => {
   });
 };
 
+/**
+ * Builds corporate or school job architecture consumed by dummy-data.ts as the source for org/pay/personnel seeds.
+ */
 export const buildInitialJobArchitecture = (
   businessMode: "corporate" | "school"
 ): JobArchitectureData => {

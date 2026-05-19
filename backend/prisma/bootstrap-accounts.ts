@@ -2,9 +2,10 @@ import { MOCK_EMPLOYEES } from './source/unified-hris/data/corporateMockData';
 
 export type PhaseOneRole = 'Superadmin' | 'Approver' | 'Employee';
 
-export interface PhaseOneDemoAccount {
+export interface BootstrapAccount {
   key: 'superadmin' | 'approver' | 'employee';
   userId: number;
+  sourceEmployeeId?: string;
   employeeId?: number;
   role: PhaseOneRole;
   email: string;
@@ -12,7 +13,7 @@ export interface PhaseOneDemoAccount {
   description: string;
 }
 
-export const PHASE1_DEMO_PASSWORD = 'DiwaPhase1!';
+export const BOOTSTRAP_PASSWORD = 'DiwaPhase1!';
 
 function toSeedEmail(email: string): string {
   return email.replace(/@.+$/, '@diwalearning.local');
@@ -25,7 +26,7 @@ function findEmployeeIndex(
   const index = MOCK_EMPLOYEES.findIndex(predicate);
 
   if (index < 0) {
-    throw new Error(`Unable to locate ${label} demo account source employee.`);
+    throw new Error(`Unable to locate ${label} bootstrap account source employee.`);
   }
 
   return index;
@@ -46,7 +47,7 @@ const employeeIndex = findEmployeeIndex(
 const approverSourceEmployee = MOCK_EMPLOYEES[approverIndex];
 const employeeSourceEmployee = MOCK_EMPLOYEES[employeeIndex];
 
-export const PHASE1_DEMO_ACCOUNTS: readonly PhaseOneDemoAccount[] = [
+export const BOOTSTRAP_ACCOUNTS: readonly BootstrapAccount[] = [
   {
     key: 'superadmin',
     userId: 1,
@@ -58,23 +59,27 @@ export const PHASE1_DEMO_ACCOUNTS: readonly PhaseOneDemoAccount[] = [
   {
     key: 'approver',
     userId: 3,
+    sourceEmployeeId: approverSourceEmployee.id,
     employeeId: approverIndex + 1,
     role: 'Approver',
     email: toSeedEmail(approverSourceEmployee.email),
     displayName: approverSourceEmployee.name,
-    description: 'Functional approver for personnel and compensation workflows.',
+    description:
+      'Functional approver for personnel and compensation workflows.',
   },
   {
     key: 'employee',
     userId: 9,
+    sourceEmployeeId: employeeSourceEmployee.id,
     employeeId: employeeIndex + 1,
     role: 'Employee',
     email: toSeedEmail(employeeSourceEmployee.email),
     displayName: employeeSourceEmployee.name,
-    description: 'Regular employee self-service account for Phase 1 validation.',
+    description:
+      'Regular employee self-service account for Phase 1 validation.',
   },
 ] as const;
 
-export const PHASE1_DEMO_ACCOUNT_MAP = Object.fromEntries(
-  PHASE1_DEMO_ACCOUNTS.map((account) => [account.key, account]),
-) as Record<PhaseOneDemoAccount['key'], PhaseOneDemoAccount>;
+export const BOOTSTRAP_ACCOUNT_MAP = Object.fromEntries(
+  BOOTSTRAP_ACCOUNTS.map((account) => [account.key, account]),
+) as Record<BootstrapAccount['key'], BootstrapAccount>;

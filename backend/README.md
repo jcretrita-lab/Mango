@@ -42,12 +42,16 @@ Legacy singular collection aliases remain available for the renamed Phase 1 reso
 ## Local setup
 
 ```bash
-bun install
-bun run prisma:generate
-bun run prisma:push
-bun run db:seed
-bun run start:dev
+npm install
+npm run prisma:generate
+npm run migrate:deploy
+npm run db:seed
+npm run start:dev
 ```
+
+Dummy data is loaded only through `npm run db:seed:dummy` / `npm run db:seed`.
+Use `npm run db:seed:fixtures` when preparing a non-dummy environment with only
+Phase 1 reference data such as roles, permissions, modules, and workflow setup.
 
 ## Useful URLs
 

@@ -1,18 +1,26 @@
 import { PrismaClient } from '@prisma/client';
 import { normalizeRecordPayload } from '../src/common/payload/normalize-payload';
-import type {
-  CrudDelegate,
-  CrudModelName,
-} from '../src/common/crud/crud.types';
+import type { ReadModelName } from '../src/common/api/read-resource.types';
+import { PHASE1_HR_STATUS_VALUES } from '../src/common/constants/domain-status.constants';
 import { seedData } from './dummy-data';
 
 const prisma = new PrismaClient();
+const PRODUCTION_ENV = 'production';
 
 type SeedDeleteDelegate = {
   deleteMany: () => Promise<unknown>;
 };
 
-const deleteOrder: readonly CrudModelName[] = [
+type SeedCountDelegate = {
+  count: () => Promise<number>;
+};
+
+type SeedCreateDelegate = {
+  create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
+};
+
+const deleteOrder: readonly ReadModelName[] = [
+  'auditEvent',
   'employeePayProfile',
   'earningTemplateRevisionLine',
   'earningTemplateRevision',
@@ -75,21 +83,60 @@ const deleteOrder: readonly CrudModelName[] = [
   'role',
   'userAuthToken',
   'userSession',
+  'userCredential',
   'user',
 ];
 
+const seedValidationModels = [...deleteOrder].reverse();
+
+/**
+ * Clears tables in dependency-safe order so seed() can rebuild data without foreign-key conflicts.
+ */
 async function resetDatabase(): Promise<void> {
+  if (process.env.NODE_ENV === PRODUCTION_ENV) {
+    throw new Error(
+      'Refusing to run destructive dummy seed when NODE_ENV=production.',
+    );
+  }
+
   for (const model of deleteOrder) {
     const delegate = prisma[model] as unknown as SeedDeleteDelegate;
     await delegate.deleteMany();
   }
 }
 
+/**
+ * Converts Prisma delegate names such as userCredential into default Prisma table names such as UserCredential.
+ */
+function prismaModelNameToTableName(model: ReadModelName): string {
+  return model.charAt(0).toUpperCase() + model.slice(1);
+}
+
+/**
+ * Resets PostgreSQL serial sequences after explicit-id dummy seed inserts so the next real insert gets a safe id.
+ */
+async function resetPostgresSequences(): Promise<void> {
+  for (const model of seedValidationModels) {
+    const tableName = prismaModelNameToTableName(model);
+
+    await prisma.$executeRawUnsafe(`
+      SELECT setval(
+        pg_get_serial_sequence('"${tableName}"', 'id'),
+        COALESCE((SELECT MAX("id") FROM "${tableName}"), 1),
+        (SELECT COUNT(*) FROM "${tableName}") > 0
+      )
+    `);
+  }
+}
+
+/**
+ * Inserts normalized rows into the Prisma model named by seed(), connecting seedData arrays to database tables.
+ */
 async function insertRows<T extends object>(
-  model: CrudModelName,
+  model: ReadModelName,
   rows: readonly T[],
 ): Promise<void> {
-  const delegate = prisma[model] as unknown as Pick<CrudDelegate, 'create'>;
+  const delegate = prisma[model] as unknown as SeedCreateDelegate;
 
   for (const row of rows) {
     await delegate.create({
@@ -98,10 +145,17 @@ async function insertRows<T extends object>(
   }
 }
 
+/**
+ * Recreates all Phase 1 seed data, using two-pass updates where circular org/personnel references exist.
+ */
 async function seed(): Promise<void> {
   await resetDatabase();
 
-  await insertRows('user', seedData.users);
+  await insertRows(
+    'user',
+    seedData.users.map((user) => ({ ...user, employeeId: null })),
+  );
+  await insertRows('userCredential', seedData.userCredentials);
   await insertRows('role', seedData.roles);
   await insertRows('permission', seedData.permissions);
   await insertRows('systemModule', seedData.systemModules);
@@ -125,6 +179,7 @@ async function seed(): Promise<void> {
   );
   await insertRows('userSession', seedData.userSessions);
   await insertRows('userAuthToken', seedData.userAuthTokens);
+  await insertRows('auditEvent', seedData.auditEvents);
 
   await insertRows('hierarchyLevel', seedData.hierarchyLevels);
   await insertRows('site', seedData.sites);
@@ -161,8 +216,22 @@ async function seed(): Promise<void> {
   // Pass 1: Insert Employees without primaryPositionAssignmentId
   await insertRows(
     'employee',
-    seedData.employees.map((e) => ({ ...e, primaryPositionAssignmentId: null })),
+    seedData.employees.map((e) => ({
+      ...e,
+      primaryPositionAssignmentId: null,
+    })),
   );
+
+  console.log('Linking Users to Employees...');
+  for (const user of seedData.users) {
+    if (user.employeeId) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { employeeId: user.employeeId },
+      });
+    }
+  }
+
   await insertRows('employment', seedData.employments);
   await insertRows('employeeProfile', seedData.employeeProfiles);
   await insertRows('educationRecord', seedData.educationRecords);
@@ -279,11 +348,104 @@ async function seed(): Promise<void> {
       });
     }
   }
+
+  await resetPostgresSequences();
 }
 
+/**
+ * Fails fast when the deterministic demo database no longer covers the current Phase 1 schema.
+ */
+async function validateSeed(): Promise<void> {
+  const employeeCount = await prisma.employee.count();
+
+  if (employeeCount !== 100) {
+    throw new Error(`Expected exactly 100 employees, found ${employeeCount}.`);
+  }
+
+  const emptyModels: string[] = [];
+
+  for (const model of seedValidationModels) {
+    const delegate = prisma[model] as unknown as SeedCountDelegate;
+    const count = await delegate.count();
+
+    if (count < 1) {
+      emptyModels.push(model);
+    }
+  }
+
+  if (emptyModels.length > 0) {
+    throw new Error(
+      `Seed did not populate all Phase 1 models. Empty models: ${emptyModels.join(', ')}.`,
+    );
+  }
+
+  const credentialCount = await prisma.userCredential.count();
+
+  if (credentialCount !== seedData.users.length) {
+    throw new Error(
+      `Expected one credential for each user, found ${credentialCount} credentials for ${seedData.users.length} users.`,
+    );
+  }
+
+  const employeeLinkedUserCount = await prisma.user.count({
+    where: { employeeId: { not: null } },
+  });
+  const expectedEmployeeLinkedUserCount = seedData.users.filter(
+    (user) => user.employeeId,
+  ).length;
+
+  if (employeeLinkedUserCount !== expectedEmployeeLinkedUserCount) {
+    throw new Error(
+      `Expected ${expectedEmployeeLinkedUserCount} employee-linked users, found ${employeeLinkedUserCount}.`,
+    );
+  }
+
+  const primaryRoleAssignmentCount = await prisma.userRoleAssignment.count({
+    where: { isActive: true, isPrimary: true },
+  });
+
+  if (primaryRoleAssignmentCount !== seedData.users.length) {
+    throw new Error(
+      `Expected one active primary role assignment for each user, found ${primaryRoleAssignmentCount}.`,
+    );
+  }
+
+  const invalidEmployeeStatusCount = await prisma.employee.count({
+    where: {
+      status: { notIn: [...PHASE1_HR_STATUS_VALUES.employee] },
+    },
+  });
+  const invalidEmploymentStatusCount = await prisma.employment.count({
+    where: {
+      status: { notIn: [...PHASE1_HR_STATUS_VALUES.employment] },
+    },
+  });
+  const invalidApprovalStatusCount = await prisma.approvalRequest.count({
+    where: {
+      status: { notIn: [...PHASE1_HR_STATUS_VALUES.approval] },
+    },
+  });
+
+  if (
+    invalidEmployeeStatusCount > 0 ||
+    invalidEmploymentStatusCount > 0 ||
+    invalidApprovalStatusCount > 0
+  ) {
+    throw new Error(
+      `Seed contains unsupported Phase 1 statuses: employees=${invalidEmployeeStatusCount}, employments=${invalidEmploymentStatusCount}, approvals=${invalidApprovalStatusCount}.`,
+    );
+  }
+
+  console.log('Seed validation passed.');
+}
+
+/**
+ * Runs the seed workflow, reports success/failure, and always disconnects the Prisma client.
+ */
 async function main(): Promise<void> {
   try {
     await seed();
+    await validateSeed();
     console.log('Seed completed successfully.');
   } catch (error) {
     console.error('Seed failed.', error);

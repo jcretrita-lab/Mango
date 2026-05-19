@@ -1,0 +1,2 @@
+-- Intentionally empty.
+-- The production baseline migration now creates the auth, RBAC, session, and audit tables/columns directly.

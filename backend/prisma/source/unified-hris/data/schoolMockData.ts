@@ -73,7 +73,7 @@ const posMap: Record<string, { name: string; grade: string }[]> = {
   ]
 };
 
-// Populate ranks with position templates
+// Populates school rank positions so jobArchitectureSeeds can derive school position templates.
 MOCK_RANKS_SCHOOL.forEach(r => {
   r.positions = (posMap[r.id] || []).map((p, idx) => ({
     id: `srp-${r.id}-${idx}`,

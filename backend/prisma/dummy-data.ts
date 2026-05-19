@@ -1,13 +1,21 @@
+import { hashSync } from 'bcryptjs';
 import { MOCK_EMPLOYEES } from './source/unified-hris/data/corporateMockData';
 import { buildInitialJobArchitecture } from './source/unified-hris/data/jobArchitectureSeeds';
 import { ENTERPRISE_PAY_COMPONENTS } from './source/unified-hris/data/payComponentsData';
 import { ENTERPRISE_PAY_TEMPLATES } from './source/unified-hris/data/payTemplatesData';
 import { initialPersonnelDataset } from './source/unified-hris/data/personnelSeeds';
-import { PHASE1_DEMO_ACCOUNT_MAP } from './phase1-demo-accounts';
+import {
+  BOOTSTRAP_ACCOUNT_MAP,
+
+  BOOTSTRAP_PASSWORD,
+
+} from './bootstrap-accounts';
 
 const orgStructureEffectiveStart = '2025-01-01T00:00:00.000Z';
 const roleAssignmentStart = '2026-01-01T08:00:00.000Z';
 const nowIso = '2026-04-21T08:00:00.000Z';
+const SEED_EMPLOYEE_TOTAL = 100;
+const seedPasswordHash = hashSync(BOOTSTRAP_PASSWORD, 10);
 
 const sourceJobArchitecture = buildInitialJobArchitecture('corporate');
 
@@ -16,6 +24,9 @@ type SourcePosition = (typeof sourceJobArchitecture.positions)[number];
 type SourcePayTemplate = (typeof ENTERPRISE_PAY_TEMPLATES)[number];
 type SourceEmployee = (typeof MOCK_EMPLOYEES)[number];
 
+/**
+ * Cleans imported source text before it becomes Prisma seed data consumed by seed.ts.
+ */
 function sanitizeText(value: string | undefined): string {
   return (value ?? '')
     .replace(/â€¢/g, ' - ')
@@ -26,6 +37,9 @@ function sanitizeText(value: string | undefined): string {
     .trim();
 }
 
+/**
+ * Builds short stable codes from source labels for org-unit codes, emails, and generated seed identifiers.
+ */
 function slugify(value: string): string {
   return sanitizeText(value)
     .toLowerCase()
@@ -34,6 +48,9 @@ function slugify(value: string): string {
     .slice(0, 40);
 }
 
+/**
+ * Creates closure-table rows that let org-structure APIs query ancestor/descendant relationships efficiently.
+ */
 function buildOrgUnitClosures(
   units: readonly { id: number; parentOrgUnitId?: number | null }[],
 ) {
@@ -76,10 +93,19 @@ function buildOrgUnitClosures(
   return closures;
 }
 
+/**
+ * Flattens nested source org units into the one-dimensional order used by id maps and seed arrays.
+ */
 function flattenOrgUnits(units: readonly SourceOrgUnit[]): SourceOrgUnit[] {
-  return units.flatMap((unit) => [unit, ...flattenOrgUnits(unit.children ?? [])]);
+  return units.flatMap((unit) => [
+    unit,
+    ...flattenOrgUnits(unit.children ?? []),
+  ]);
 }
 
+/**
+ * Splits a source display name into first/last names for Employee and User seed records.
+ */
 function splitDisplayName(displayName: string) {
   const parts = sanitizeText(displayName).split(' ').filter(Boolean);
   if (parts.length === 0) {
@@ -94,13 +120,23 @@ function splitDisplayName(displayName: string) {
   };
 }
 
+/**
+ * Creates UTC ISO date strings for Prisma DateTime fields in deterministic seed records.
+ */
 function toIsoDate(year: number, month: number, day: number): string {
   return new Date(Date.UTC(year, month - 1, day, 0, 0, 0)).toISOString();
 }
 
+/**
+ * Shifts a seed ISO date by whole years for education, history, and lifecycle records connected to employees.
+ */
 function shiftIsoDate(isoDate: string, years: number): string {
   const value = new Date(isoDate);
-  return toIsoDate(value.getUTCFullYear() + years, value.getUTCMonth() + 1, value.getUTCDate());
+  return toIsoDate(
+    value.getUTCFullYear() + years,
+    value.getUTCMonth() + 1,
+    value.getUTCDate(),
+  );
 }
 
 const siteCatalog = [
@@ -225,33 +261,52 @@ const hierarchyLevelIdBySourceId = new Map(
 );
 
 const sourceOrgUnits = flattenOrgUnits(sourceJobArchitecture.orgUnits);
-const sourceOrgUnitById = new Map(sourceOrgUnits.map((unit) => [unit.id, unit]));
+const sourceOrgUnitById = new Map(
+  sourceOrgUnits.map((unit) => [unit.id, unit]),
+);
 const orgUnitIdBySourceId = new Map(
   sourceOrgUnits.map((unit, index) => [unit.id, index + 1]),
 );
 
 const sourcePositions = [...sourceJobArchitecture.positions];
-const sourcePositionById = new Map(sourcePositions.map((position) => [position.id, position]));
+const sourcePositionById = new Map(
+  sourcePositions.map((position) => [position.id, position]),
+);
 const positionIdBySourceId = new Map(
   sourcePositions.map((position, index) => [position.id, index + 1]),
 );
 
+/**
+ * Walks source org-unit parents to produce the path used by employee orgUnitJson and site inference.
+ */
 function buildOrgUnitPath(orgUnitId: string): SourceOrgUnit[] {
   const path: SourceOrgUnit[] = [];
   let current = sourceOrgUnitById.get(orgUnitId);
 
   while (current) {
     path.unshift(current);
-    current = current.parentId ? sourceOrgUnitById.get(current.parentId) : undefined;
+    current = current.parentId
+      ? sourceOrgUnitById.get(current.parentId)
+      : undefined;
   }
 
   return path;
 }
 
+/**
+ * Infers the seeded Site name from an org-unit path so employees and org data connect to realistic locations.
+ */
 function inferSiteName(path: readonly SourceOrgUnit[]): string {
-  const joined = path.map((unit) => sanitizeText(unit.name).toLowerCase()).join(' ');
+  const joined = path
+    .map((unit) => sanitizeText(unit.name).toLowerCase())
+    .join(' ');
 
-  if (joined.includes('cebu') || joined.includes('iloilo') || joined.includes('tacloban') || joined.includes('visayas')) {
+  if (
+    joined.includes('cebu') ||
+    joined.includes('iloilo') ||
+    joined.includes('tacloban') ||
+    joined.includes('visayas')
+  ) {
     return 'Cebu Regional Office';
   }
   if (joined.includes('davao') || joined.includes('socsargen')) {
@@ -272,16 +327,27 @@ function inferSiteName(path: readonly SourceOrgUnit[]): string {
   if (joined.includes('laguna') || joined.includes('south luzon')) {
     return 'Laguna Learning Hub';
   }
-  if (joined.includes('customer success') || joined.includes('sales support') || joined.includes('alabang')) {
+  if (
+    joined.includes('customer success') ||
+    joined.includes('sales support') ||
+    joined.includes('alabang')
+  ) {
     return 'Alabang Customer Success Center';
   }
-  if (joined.includes('information technology') || joined.includes('human resource') || joined.includes('accounting')) {
+  if (
+    joined.includes('information technology') ||
+    joined.includes('human resource') ||
+    joined.includes('accounting')
+  ) {
     return 'Quezon City Shared Services Campus';
   }
 
   return 'Makati Head Office';
 }
 
+/**
+ * Converts an org-unit path into the JSON department/division/site shape stored on Employee records.
+ */
 function buildOrgUnitJson(orgUnitId: string): Record<string, string> {
   const path = buildOrgUnitPath(orgUnitId);
   const result: Record<string, string> = {};
@@ -311,11 +377,13 @@ function buildOrgUnitJson(orgUnitId: string): Record<string, string> {
   return result;
 }
 
-const sourceSalaryGrades = [...sourceJobArchitecture.salaryGrades].sort((left, right) => {
-  const leftNumber = Number(left.code.replace(/\D/g, ''));
-  const rightNumber = Number(right.code.replace(/\D/g, ''));
-  return leftNumber - rightNumber;
-});
+const sourceSalaryGrades = [...sourceJobArchitecture.salaryGrades].sort(
+  (left, right) => {
+    const leftNumber = Number(left.code.replace(/\D/g, ''));
+    const rightNumber = Number(right.code.replace(/\D/g, ''));
+    return leftNumber - rightNumber;
+  },
+);
 
 const salaryGradeIdBySourceId = new Map(
   sourceSalaryGrades.map((grade, index) => [grade.id, index + 1]),
@@ -325,7 +393,9 @@ const salaryGrades = sourceSalaryGrades.map((grade, index) => ({
   id: index + 1,
   code: sanitizeText(grade.code),
   name: sanitizeText(grade.name),
-  rateType: grade.rateType ?? (grade.steps && grade.steps.length > 0 ? 'range' : 'fixed'),
+  rateType:
+    grade.rateType ??
+    (grade.steps && grade.steps.length > 0 ? 'range' : 'fixed'),
   minSalary: grade.minSalary ?? grade.amount ?? grade.steps?.[0]?.amount ?? 0,
   maxSalary:
     grade.maxSalary ??
@@ -351,6 +421,9 @@ const salaryGradeSteps = sourceSalaryGrades.flatMap((grade) =>
   }),
 );
 
+/**
+ * Finds the closest salary grade step for a position's base pay so Position rows connect to SalaryGradeStep.
+ */
 function resolveSalaryGradeStepId(
   sourceSalaryGradeId: string | undefined,
   basePay: number,
@@ -359,20 +432,30 @@ function resolveSalaryGradeStepId(
     return undefined;
   }
 
-  const sourceGrade = sourceSalaryGrades.find((grade) => grade.id === sourceSalaryGradeId);
+  const sourceGrade = sourceSalaryGrades.find(
+    (grade) => grade.id === sourceSalaryGradeId,
+  );
   if (!sourceGrade || !sourceGrade.steps || sourceGrade.steps.length === 0) {
     return undefined;
   }
 
   const closestStep = sourceGrade.steps.reduce((closest, current) =>
-    Math.abs(current.amount - basePay) < Math.abs(closest.amount - basePay) ? current : closest,
+    Math.abs(current.amount - basePay) < Math.abs(closest.amount - basePay)
+      ? current
+      : closest,
   );
 
-  return salaryGradeStepIdBySourceKey.get(`${sourceSalaryGradeId}:${closestStep.id}`);
+  return salaryGradeStepIdBySourceKey.get(
+    `${sourceSalaryGradeId}:${closestStep.id}`,
+  );
 }
 
-const sourceRanks = [...sourceJobArchitecture.ranks].sort((left, right) => left.order - right.order);
-const rankIdBySourceId = new Map(sourceRanks.map((rank, index) => [rank.id, index + 1]));
+const sourceRanks = [...sourceJobArchitecture.ranks].sort(
+  (left, right) => left.order - right.order,
+);
+const rankIdBySourceId = new Map(
+  sourceRanks.map((rank, index) => [rank.id, index + 1]),
+);
 
 const ranks = sourceRanks.map((rank, index) => ({
   id: index + 1,
@@ -396,7 +479,9 @@ const rankLevels = sourceRanks.flatMap((rank) =>
   }),
 );
 
-const sourcePositionTemplates = [...sourceJobArchitecture.positionTemplates].sort((left, right) =>
+const sourcePositionTemplates = [
+  ...sourceJobArchitecture.positionTemplates,
+].sort((left, right) =>
   sanitizeText(left.name).localeCompare(sanitizeText(right.name)),
 );
 const positionTemplateIdBySourceId = new Map(
@@ -408,10 +493,9 @@ const positionTemplates = sourcePositionTemplates.map((template, index) => ({
   name: sanitizeText(template.name),
   family: template.family ? sanitizeText(template.family) : undefined,
   category: template.category ? sanitizeText(template.category) : undefined,
-  description:
-    template.description
-      ? sanitizeText(template.description)
-      : `Imported unified-HRIS job template for ${sanitizeText(template.name)}`,
+  description: template.description
+    ? sanitizeText(template.description)
+    : `Imported unified-HRIS job template for ${sanitizeText(template.name)}`,
 }));
 
 const sourcePositionProfiles = sourcePositionTemplates.flatMap((template) =>
@@ -424,7 +508,12 @@ const positionProfileIdBySourceId = new Map(
   sourcePositionProfiles.map((profile, index) => [profile.id, index + 1]),
 );
 
-function resolveSourcePositionProfileId(position: SourcePosition): string | undefined {
+/**
+ * Resolves a source position to the best position profile so seeded Position rows connect to job architecture.
+ */
+function resolveSourcePositionProfileId(
+  position: SourcePosition,
+): string | undefined {
   if (position.positionProfileId) {
     return position.positionProfileId;
   }
@@ -434,8 +523,10 @@ function resolveSourcePositionProfileId(position: SourcePosition): string | unde
   const templateSpecificCandidate = sourcePositionProfiles.find((profile) => {
     const templateName = sanitizeText(profile.sourceTemplateId).toLowerCase();
     return (
-      (normalizedTitle.includes('vp') && templateName.includes('vice-president')) ||
-      ((normalizedTitle.includes('chief') || normalizedTitle.includes('chro')) &&
+      (normalizedTitle.includes('vp') &&
+        templateName.includes('vice-president')) ||
+      ((normalizedTitle.includes('chief') ||
+        normalizedTitle.includes('chro')) &&
         templateName.includes('executive-director'))
     );
   });
@@ -467,11 +558,16 @@ function resolveSourcePositionProfileId(position: SourcePosition): string | unde
 
 const positionProfiles = sourcePositionProfiles.map((profile, index) => ({
   id: index + 1,
-  positionTemplateId: positionTemplateIdBySourceId.get(profile.sourceTemplateId)!,
+  positionTemplateId: positionTemplateIdBySourceId.get(
+    profile.sourceTemplateId,
+  )!,
   label: sanitizeText(profile.label),
   rankId: profile.rankId ? rankIdBySourceId.get(profile.rankId) : undefined,
-  rankLevelId: profile.rankLevelId ? rankLevelIdBySourceId.get(profile.rankLevelId) : undefined,
-  progressionMode: profile.progressionMode === 'sub_levels' ? 'sub_level' : 'base_grade',
+  rankLevelId: profile.rankLevelId
+    ? rankLevelIdBySourceId.get(profile.rankLevelId)
+    : undefined,
+  progressionMode:
+    profile.progressionMode === 'sub_levels' ? 'sub_level' : 'base_grade',
   defaultSalaryGradeId: profile.defaultGradeId
     ? salaryGradeIdBySourceId.get(profile.defaultGradeId)
     : undefined,
@@ -500,8 +596,12 @@ const orgUnits = sourceOrgUnits.map((unit, index) => ({
   code: `${slugify(unit.type).toUpperCase()}-${String(index + 1).padStart(3, '0')}`,
   name: sanitizeText(unit.name),
   hierarchyLevelId: hierarchyLevelIdBySourceId.get(unit.hierarchyLevelId!)!,
-  parentOrgUnitId: unit.parentId ? orgUnitIdBySourceId.get(unit.parentId) : undefined,
-  headPositionId: unit.headPositionId ? positionIdBySourceId.get(unit.headPositionId) : undefined,
+  parentOrgUnitId: unit.parentId
+    ? orgUnitIdBySourceId.get(unit.parentId)
+    : undefined,
+  headPositionId: unit.headPositionId
+    ? positionIdBySourceId.get(unit.headPositionId)
+    : undefined,
 }));
 
 const orgUnitClosures = buildOrgUnitClosures(orgUnits);
@@ -509,9 +609,13 @@ const orgUnitClosures = buildOrgUnitClosures(orgUnits);
 const orgUnitVersions = sourceOrgUnits.map((unit, index) => ({
   id: index + 1,
   orgUnitId: orgUnitIdBySourceId.get(unit.id)!,
-  parentOrgUnitId: unit.parentId ? orgUnitIdBySourceId.get(unit.parentId) : undefined,
+  parentOrgUnitId: unit.parentId
+    ? orgUnitIdBySourceId.get(unit.parentId)
+    : undefined,
   hierarchyLevelId: hierarchyLevelIdBySourceId.get(unit.hierarchyLevelId!)!,
-  headPositionId: unit.headPositionId ? positionIdBySourceId.get(unit.headPositionId) : undefined,
+  headPositionId: unit.headPositionId
+    ? positionIdBySourceId.get(unit.headPositionId)
+    : undefined,
   name: sanitizeText(unit.name),
   effectiveStartDate: orgStructureEffectiveStart,
   isCurrent: true,
@@ -521,14 +625,19 @@ const orgUnitVersions = sourceOrgUnits.map((unit, index) => ({
 const positions = sourcePositions.map((position, index) => ({
   id: index + 1,
   orgUnitId: orgUnitIdBySourceId.get(position.orgUnitId)!,
-  positionProfileId: positionProfileIdBySourceId.get(resolveSourcePositionProfileId(position)!)!,
+  positionProfileId: positionProfileIdBySourceId.get(
+    resolveSourcePositionProfileId(position)!,
+  )!,
   positionSubLevelId: position.subLevelsStepId
     ? positionSubLevelIdBySourceId.get(position.subLevelsStepId)
     : undefined,
   salaryGradeId: position.salaryGradeId
     ? salaryGradeIdBySourceId.get(position.salaryGradeId)
     : undefined,
-  salaryGradeStepId: resolveSalaryGradeStepId(position.salaryGradeId, position.defaultBasePay),
+  salaryGradeStepId: resolveSalaryGradeStepId(
+    position.salaryGradeId,
+    position.defaultBasePay,
+  ),
   supervisorPositionId: position.supervisorId
     ? positionIdBySourceId.get(position.supervisorId)
     : undefined,
@@ -560,43 +669,94 @@ const companyProfiles = [
 ];
 
 const protectedSourceEmployeeIds = new Set(
-  ['CHRO', 'VP of HRMD', 'VP of Information Technology', 'IT Manager', 'Accounting Manager', 'HRMD Supervisor']
-    .map((role) => MOCK_EMPLOYEES.find((employee) => employee.role === role)?.id)
+  [
+    'CHRO',
+    'VP of HRMD',
+    'VP of Information Technology',
+    'IT Manager',
+    'Accounting Manager',
+    'HRMD Supervisor',
+    'HR Specialist',
+    'Executive Assistant',
+  ]
+    .map(
+      (role) => MOCK_EMPLOYEES.find((employee) => employee.role === role)?.id,
+    )
     .filter((id): id is string => Boolean(id)),
 );
 
+if (BOOTSTRAP_ACCOUNT_MAP.approver.sourceEmployeeId) {
+  protectedSourceEmployeeIds.add(
+    BOOTSTRAP_ACCOUNT_MAP.approver.sourceEmployeeId,
+  );
+}
+
+if (BOOTSTRAP_ACCOUNT_MAP.employee.sourceEmployeeId) {
+  protectedSourceEmployeeIds.add(
+    BOOTSTRAP_ACCOUNT_MAP.employee.sourceEmployeeId,
+  );
+}
+
+const sourceEmployeeOriginalIndexById = new Map(
+  MOCK_EMPLOYEES.map((employee, index) => [employee.id, index]),
+);
+
+const selectedSourceEmployees = [
+  ...MOCK_EMPLOYEES.filter((employee) =>
+    protectedSourceEmployeeIds.has(employee.id),
+  ),
+  ...MOCK_EMPLOYEES.filter(
+    (employee) => !protectedSourceEmployeeIds.has(employee.id),
+  ),
+].slice(0, SEED_EMPLOYEE_TOTAL);
+
+if (selectedSourceEmployees.length !== SEED_EMPLOYEE_TOTAL) {
+  throw new Error(
+    `Expected ${SEED_EMPLOYEE_TOTAL} seed employees, found ${selectedSourceEmployees.length}.`,
+  );
+}
+
 const separatedSourceEmployeeIds = new Set(
-  MOCK_EMPLOYEES
-    .filter(
-      (employee, index) =>
-        index >= 20 &&
-        !protectedSourceEmployeeIds.has(employee.id) &&
-        index % 61 === 0,
-    )
+  MOCK_EMPLOYEES.filter(
+    (employee, index) =>
+      index >= 20 &&
+      !protectedSourceEmployeeIds.has(employee.id) &&
+      index % 61 === 0,
+  )
     .slice(0, 5)
     .map((employee) => employee.id),
 );
 
 const suspendedSourceEmployeeIds = new Set(
-  MOCK_EMPLOYEES
-    .filter(
-      (employee, index) =>
-        index >= 30 &&
-        !protectedSourceEmployeeIds.has(employee.id) &&
-        index % 73 === 0,
-    )
+  MOCK_EMPLOYEES.filter(
+    (employee, index) =>
+      index >= 30 &&
+      !protectedSourceEmployeeIds.has(employee.id) &&
+      index % 73 === 0,
+  )
     .slice(0, 3)
     .map((employee) => employee.id),
 );
 
 const probationarySourceEmployeeIds = new Set(
-  MOCK_EMPLOYEES.slice(-18).map((employee) => employee.id),
+  selectedSourceEmployees
+    .filter((employee) => !protectedSourceEmployeeIds.has(employee.id))
+    .slice(-18)
+    .map((employee) => employee.id),
 );
 
+/**
+ * Classifies an employee's functional track from role/department to drive education, assets, and pay seed choices.
+ */
 function inferTrack(role: string, department: string): string {
-  const text = `${sanitizeText(role)} ${sanitizeText(department)}`.toLowerCase();
+  const text =
+    `${sanitizeText(role)} ${sanitizeText(department)}`.toLowerCase();
 
-  if (/information technology|developer|programmer|technical|systems|network|data center|qa/.test(text)) {
+  if (
+    /information technology|developer|programmer|technical|systems|network|data center|qa/.test(
+      text,
+    )
+  ) {
     return 'technology';
   }
   if (/human resource|hr|people/.test(text)) {
@@ -605,13 +765,19 @@ function inferTrack(role: string, department: string): string {
   if (/accounting|finance|credit|cash|ar |ap |compliance/.test(text)) {
     return 'finance';
   }
-  if (/sales|marketing|customer service|telesales|product management/.test(text)) {
+  if (
+    /sales|marketing|customer service|telesales|product management/.test(text)
+  ) {
     return 'commercial';
   }
   if (/training|e-learning|aftersales|instructional/.test(text)) {
     return 'learning';
   }
-  if (/warehouse|traffic|operations support|office services|driver|messenger|maintenance|janitor/.test(text)) {
+  if (
+    /warehouse|traffic|operations support|office services|driver|messenger|maintenance|janitor/.test(
+      text,
+    )
+  ) {
     return 'operations';
   }
   if (/vp|chief|president|executive/.test(text)) {
@@ -621,12 +787,17 @@ function inferTrack(role: string, department: string): string {
   return 'corporate';
 }
 
+/**
+ * Infers education attainment from role seniority for generated EducationRecord seed data.
+ */
 function inferEducationAttainment(role: string): string {
   const text = sanitizeText(role).toLowerCase();
   if (/chief|vp|president/.test(text)) {
     return "Master's Degree";
   }
-  if (/manager|director|supervisor|lead|specialist|developer|analyst/.test(text)) {
+  if (
+    /manager|director|supervisor|lead|specialist|developer|analyst/.test(text)
+  ) {
     return "Bachelor's Degree";
   }
   if (/assistant|coordinator|clerk|cashier|encoder/.test(text)) {
@@ -635,6 +806,9 @@ function inferEducationAttainment(role: string): string {
   return 'High School';
 }
 
+/**
+ * Chooses a plausible course for the employee's track and attainment in EducationRecord seed data.
+ */
 function inferCourse(track: string, attainment: string): string | undefined {
   if (attainment === 'High School') {
     return undefined;
@@ -660,20 +834,34 @@ function inferCourse(track: string, attainment: string): string | undefined {
   }
 }
 
+/**
+ * Assigns a deterministic bank name for EmployeeProfile seed rows.
+ */
 function inferBank(index: number): string {
-  const banks = ['BDO', 'BPI', 'Metrobank', 'UnionBank', 'Security Bank', 'PNB'];
+  const banks = [
+    'BDO',
+    'BPI',
+    'Metrobank',
+    'UnionBank',
+    'Security Bank',
+    'PNB',
+  ];
   return banks[index % banks.length];
 }
 
-function buildLifecycle(
-  sourceEmployee: SourceEmployee,
-  index: number,
-) {
+/**
+ * Builds employment lifecycle status/dates used by Employee, Employment, offboarding, and approval seed rows.
+ */
+function buildLifecycle(sourceEmployee: SourceEmployee, index: number) {
   if (separatedSourceEmployeeIds.has(sourceEmployee.id)) {
     return {
       employeeStatus: 'Inactive',
       employmentStatus: 'Separated',
-      startDate: toIsoDate(2018 + (index % 5), (index % 12) + 1, ((index * 3) % 27) + 1),
+      startDate: toIsoDate(
+        2018 + (index % 5),
+        (index % 12) + 1,
+        ((index * 3) % 27) + 1,
+      ),
       endDate: toIsoDate(2026, (index % 3) + 1, ((index * 5) % 27) + 1),
       jobType: 'Full-Time',
     };
@@ -683,7 +871,11 @@ function buildLifecycle(
     return {
       employeeStatus: 'Suspended',
       employmentStatus: 'Suspended',
-      startDate: toIsoDate(2020 + (index % 4), ((index + 2) % 12) + 1, ((index * 7) % 27) + 1),
+      startDate: toIsoDate(
+        2020 + (index % 4),
+        ((index + 2) % 12) + 1,
+        ((index * 7) % 27) + 1,
+      ),
       endDate: undefined,
       jobType: 'Full-Time',
     };
@@ -702,13 +894,23 @@ function buildLifecycle(
   return {
     employeeStatus: 'Active',
     employmentStatus: 'Active',
-    startDate: toIsoDate(2017 + (index % 8), ((index + 6) % 12) + 1, ((index * 11) % 27) + 1),
+    startDate: toIsoDate(
+      2017 + (index % 8),
+      ((index + 6) % 12) + 1,
+      ((index * 11) % 27) + 1,
+    ),
     endDate: undefined,
     jobType: 'Full-Time',
   };
 }
 
-const transformedEmployees = MOCK_EMPLOYEES.map((sourceEmployee, index) => {
+const transformedEmployees = selectedSourceEmployees.map((sourceEmployee) => {
+  const index = sourceEmployeeOriginalIndexById.get(sourceEmployee.id);
+
+  if (index === undefined) {
+    throw new Error(`Unable to locate source employee ${sourceEmployee.id}.`);
+  }
+
   const sourcePosition = sourcePositionById.get(sourceEmployee.positionId);
   const lifecycle = buildLifecycle(sourceEmployee, index);
   const names = splitDisplayName(sourceEmployee.name);
@@ -747,7 +949,10 @@ const transformedEmployees = MOCK_EMPLOYEES.map((sourceEmployee, index) => {
 });
 
 const employeeIdBySourceId = new Map(
-  transformedEmployees.map((employee) => [employee.sourceEmployee.id, employee.employeeId]),
+  transformedEmployees.map((employee) => [
+    employee.sourceEmployee.id,
+    employee.employeeId,
+  ]),
 );
 
 const positionAssignments = transformedEmployees.map((employee) => ({
@@ -851,32 +1056,36 @@ const examRecords = transformedEmployees
     description: `Enterprise credential for ${employee.track} roles.`,
   }));
 
-const employmentHistoryRecords = transformedEmployees.map((employee, index) => ({
-  id: index + 1,
-  employeeId: employee.employeeId,
-  company:
-    employee.track === 'technology'
-      ? 'NorthBridge Digital Services'
-      : employee.track === 'people'
-        ? 'PeopleCore Advisory Inc.'
-        : employee.track === 'finance'
-          ? 'Harborline Financial Services'
-          : employee.track === 'commercial'
-            ? 'PrimeReach Distribution Corporation'
-            : employee.track === 'learning'
-              ? 'Edventure Learning Group'
-              : 'Metro Operations Solutions',
-  address: `${employee.city}, Philippines`,
-  position: employee.roleTitle,
-  department: sanitizeText(employee.sourceEmployee.department),
-  startDate: shiftIsoDate(employee.employmentStartDate, -5),
-  endDate: shiftIsoDate(employee.employmentStartDate, -1),
-}));
+const employmentHistoryRecords = transformedEmployees.map(
+  (employee, index) => ({
+    id: index + 1,
+    employeeId: employee.employeeId,
+    company:
+      employee.track === 'technology'
+        ? 'NorthBridge Digital Services'
+        : employee.track === 'people'
+          ? 'PeopleCore Advisory Inc.'
+          : employee.track === 'finance'
+            ? 'Harborline Financial Services'
+            : employee.track === 'commercial'
+              ? 'PrimeReach Distribution Corporation'
+              : employee.track === 'learning'
+                ? 'Edventure Learning Group'
+                : 'Metro Operations Solutions',
+    address: `${employee.city}, Philippines`,
+    position: employee.roleTitle,
+    department: sanitizeText(employee.sourceEmployee.department),
+    startDate: shiftIsoDate(employee.employmentStartDate, -5),
+    endDate: shiftIsoDate(employee.employmentStartDate, -1),
+  }),
+);
 
 const referenceContacts = transformedEmployees.map((employee, index) => ({
   id: index + 1,
   employeeId: employee.employeeId,
-  firstName: ['Maria', 'Paolo', 'Cecilia', 'Ramon', 'Liza', 'Francis'][index % 6],
+  firstName: ['Maria', 'Paolo', 'Cecilia', 'Ramon', 'Liza', 'Francis'][
+    index % 6
+  ],
   lastName: ['Santos', 'Navarro', 'Padilla', 'Roxas', 'Lim', 'Cruz'][index % 6],
   position: `${employee.track === 'technology' ? 'Engineering' : 'Functional'} Manager`,
   contactNo: `0918${String(1234500 + index).padStart(7, '0')}`,
@@ -891,7 +1100,14 @@ const familyMembers = transformedEmployees.map((employee, index) => ({
   firstName: ['Andrea', 'Miguel', 'Liza', 'Noel', 'Patricia', 'Mae'][index % 6],
   lastName: employee.lastName,
   birthday: shiftIsoDate(employeeProfiles[index].birthDate, -25),
-  occupation: ['Teacher', 'Engineer', 'Entrepreneur', 'Nurse', 'Architect', 'Consultant'][index % 6],
+  occupation: [
+    'Teacher',
+    'Engineer',
+    'Entrepreneur',
+    'Nurse',
+    'Architect',
+    'Consultant',
+  ][index % 6],
   address: employeeProfiles[index].residentialAddress,
 }));
 
@@ -935,32 +1151,50 @@ const pisFields = initialPersonnelDataset.pisFields.map((field, index) => ({
 }));
 
 const pisFieldIdBySourceId = new Map(
-  initialPersonnelDataset.pisFields.map((field, index) => [field.id, index + 1]),
+  initialPersonnelDataset.pisFields.map((field, index) => [
+    field.id,
+    index + 1,
+  ]),
 );
-const pisFieldIdByCode = new Map(pisFields.map((field) => [field.code, field.id]));
+const pisFieldIdByCode = new Map(
+  pisFields.map((field) => [field.code, field.id]),
+);
 
-const pisFieldOptions = initialPersonnelDataset.pisFieldOptions.map((option, index) => ({
-  id: index + 1,
-  pisFieldId: pisFieldIdBySourceId.get(option.fieldId)!,
-  code: sanitizeText(option.code),
-  label: sanitizeText(option.label),
-  sortOrder: option.sortOrder,
-  isActive: option.isActive,
-}));
+const pisFieldOptions = initialPersonnelDataset.pisFieldOptions.map(
+  (option, index) => ({
+    id: index + 1,
+    pisFieldId: pisFieldIdBySourceId.get(option.fieldId)!,
+    code: sanitizeText(option.code),
+    label: sanitizeText(option.label),
+    sortOrder: option.sortOrder,
+    isActive: option.isActive,
+  }),
+);
 
-const pisFieldPolicies = initialPersonnelDataset.pisFieldPolicies.map((policy, index) => ({
-  id: index + 1,
-  pisFieldId: pisFieldIdBySourceId.get(policy.fieldId)!,
-  scopeType: sanitizeText(policy.scopeType).toUpperCase(),
-  scopeId: policy.scopeId ? Number(policy.scopeId) : undefined,
-  isEnabled: policy.isEnabled,
-  isRequired: policy.isRequired,
-  priority: policy.priority,
-}));
+const pisFieldPolicies = initialPersonnelDataset.pisFieldPolicies.map(
+  (policy, index) => ({
+    id: index + 1,
+    pisFieldId: pisFieldIdBySourceId.get(policy.fieldId)!,
+    scopeType: sanitizeText(policy.scopeType).toUpperCase(),
+    scopeId: policy.scopeId ? Number(policy.scopeId) : undefined,
+    isEnabled: policy.isEnabled,
+    isRequired: policy.isRequired,
+    priority: policy.priority,
+  }),
+);
 
 const customAssetValues = transformedEmployees.flatMap((employee) => {
-  const laptopEligible = ['technology', 'people', 'finance', 'leadership', 'commercial', 'learning'].includes(employee.track);
-  const mobileEligible = ['commercial', 'leadership', 'people'].includes(employee.track);
+  const laptopEligible = [
+    'technology',
+    'people',
+    'finance',
+    'leadership',
+    'commercial',
+    'learning',
+  ].includes(employee.track);
+  const mobileEligible = ['commercial', 'leadership', 'people'].includes(
+    employee.track,
+  );
   const records: Array<{
     employeeId: number;
     pisFieldId: number;
@@ -972,13 +1206,19 @@ const customAssetValues = transformedEmployees.flatMap((employee) => {
     records.push({
       employeeId: employee.employeeId,
       pisFieldId: pisFieldIdByCode.get('laptop_model')!,
-      valueJson: { value: ['Dell Latitude 7440', 'ThinkPad T14', 'MacBook Pro 14'][employee.employeeId % 3] },
+      valueJson: {
+        value: ['Dell Latitude 7440', 'ThinkPad T14', 'MacBook Pro 14'][
+          employee.employeeId % 3
+        ],
+      },
       updatedBy: 4,
     });
     records.push({
       employeeId: employee.employeeId,
       pisFieldId: pisFieldIdByCode.get('asset_tag')!,
-      valueJson: { value: `AST-${String(employee.employeeId).padStart(4, '0')}` },
+      valueJson: {
+        value: `AST-${String(employee.employeeId).padStart(4, '0')}`,
+      },
       updatedBy: 4,
     });
   }
@@ -987,7 +1227,14 @@ const customAssetValues = transformedEmployees.flatMap((employee) => {
     records.push({
       employeeId: employee.employeeId,
       pisFieldId: pisFieldIdByCode.get('mobile_plan')!,
-      valueJson: { value: employee.track === 'leadership' ? 'Postpaid' : employee.employeeId % 2 === 0 ? 'Postpaid' : 'Prepaid' },
+      valueJson: {
+        value:
+          employee.track === 'leadership'
+            ? 'Postpaid'
+            : employee.employeeId % 2 === 0
+              ? 'Postpaid'
+              : 'Prepaid',
+      },
       updatedBy: 4,
     });
   }
@@ -1001,9 +1248,10 @@ const employeeFieldValues = customAssetValues.map((value, index) => ({
 }));
 
 const employeeFieldValueHistory = employeeFieldValues
-  .filter((value) =>
-    value.pisFieldId === pisFieldIdByCode.get('mobile_plan') ||
-    value.pisFieldId === pisFieldIdByCode.get('laptop_model'),
+  .filter(
+    (value) =>
+      value.pisFieldId === pisFieldIdByCode.get('mobile_plan') ||
+      value.pisFieldId === pisFieldIdByCode.get('laptop_model'),
   )
   .slice(0, 24)
   .map((value, index) => ({
@@ -1026,13 +1274,17 @@ const formulaBlueprints = [
     code: 'POSITION_DEFAULT_BASE_PAY',
     name: 'Position Default Base Pay',
     expression: 'position.defaultBasePay',
-    description: 'Uses the position default base pay anchor from job architecture.',
+    description:
+      'Uses the position default base pay anchor from job architecture.',
   },
   ...ENTERPRISE_PAY_COMPONENTS.filter(
-    (component) => component.type === 'earning' && component.valueType === 'formula',
+    (component) =>
+      component.type === 'earning' && component.valueType === 'formula',
   ).map((component) => ({
     sourceId: component.formulaId!,
-    code: sanitizeText(component.formulaId!).replace(/[^A-Za-z0-9]+/g, '_').toUpperCase(),
+    code: sanitizeText(component.formulaId!)
+      .replace(/[^A-Za-z0-9]+/g, '_')
+      .toUpperCase(),
     name: sanitizeText(component.name),
     expression: String(component.fixedValue ?? 0),
     description: `${sanitizeText(component.name)} imported from unified-HRIS pay components.`,
@@ -1070,7 +1322,9 @@ const earningComponentIdBySourceId = new Map(
 
 const earningComponents = sourceEarningComponents.map((component, index) => ({
   id: index + 1,
-  code: sanitizeText(component.id).replace(/[^A-Za-z0-9]+/g, '_').toUpperCase(),
+  code: sanitizeText(component.id)
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .toUpperCase(),
   name: sanitizeText(component.name),
   category:
     component.id === 'pc-basic'
@@ -1084,7 +1338,8 @@ const earningComponents = sourceEarningComponents.map((component, index) => ({
       : component.valueType === 'formula'
         ? 'FORMULA'
         : 'FIXED_AMOUNT',
-  orgReferenceType: component.id === 'pc-basic' ? 'POSITION_BASE_SALARY' : undefined,
+  orgReferenceType:
+    component.id === 'pc-basic' ? 'POSITION_BASE_SALARY' : undefined,
   fixedAmount:
     component.id === 'pc-basic' || component.valueType === 'formula'
       ? undefined
@@ -1108,10 +1363,14 @@ for (const template of ENTERPRISE_PAY_TEMPLATES) {
 }
 
 const payTemplateBlueprints = ENTERPRISE_PAY_TEMPLATES.map((template) => {
-  const siblings = [...(payTemplatesByPosition.get(template.targetId) ?? [])].sort((left, right) =>
+  const siblings = [
+    ...(payTemplatesByPosition.get(template.targetId) ?? []),
+  ].sort((left, right) =>
     sanitizeText(left.name).localeCompare(sanitizeText(right.name)),
   );
-  const templateIndex = siblings.findIndex((sibling) => sibling.id === template.id);
+  const templateIndex = siblings.findIndex(
+    (sibling) => sibling.id === template.id,
+  );
   const baseTemplate = siblings[0];
 
   return {
@@ -1123,55 +1382,68 @@ const payTemplateBlueprints = ENTERPRISE_PAY_TEMPLATES.map((template) => {
 });
 
 const earningTemplateFamilyIdBySourceId = new Map(
-  payTemplateBlueprints.map((blueprint, index) => [blueprint.template.id, index + 1]),
+  payTemplateBlueprints.map((blueprint, index) => [
+    blueprint.template.id,
+    index + 1,
+  ]),
 );
 
-const earningTemplateFamilies = payTemplateBlueprints.map((blueprint, index) => ({
-  id: index + 1,
-  baseEarningTemplateFamilyId:
-    blueprint.baseTemplateId !== blueprint.template.id
-      ? earningTemplateFamilyIdBySourceId.get(blueprint.baseTemplateId)
-      : undefined,
-  code: `TPL-${String(index + 1).padStart(4, '0')}`,
-  name: sanitizeText(blueprint.template.name),
-  templateKind: blueprint.templateKind,
-  showInDefaultPicker: blueprint.showInDefaultPicker,
-  payBasisApplicability: 'MONTHLY',
-  status: 'ACTIVE',
-  description: `Imported pay template for ${sanitizeText(blueprint.template.targetId)}${blueprint.template.targetSubLevelStepId ? ` (${sanitizeText(blueprint.template.targetSubLevelStepId)})` : ''}.`,
-}));
+const earningTemplateFamilies = payTemplateBlueprints.map(
+  (blueprint, index) => ({
+    id: index + 1,
+    baseEarningTemplateFamilyId:
+      blueprint.baseTemplateId !== blueprint.template.id
+        ? earningTemplateFamilyIdBySourceId.get(blueprint.baseTemplateId)
+        : undefined,
+    code: `TPL-${String(index + 1).padStart(4, '0')}`,
+    name: sanitizeText(blueprint.template.name),
+    templateKind: blueprint.templateKind,
+    showInDefaultPicker: blueprint.showInDefaultPicker,
+    payBasisApplicability: 'MONTHLY',
+    status: 'ACTIVE',
+    description: `Imported pay template for ${sanitizeText(blueprint.template.targetId)}${blueprint.template.targetSubLevelStepId ? ` (${sanitizeText(blueprint.template.targetSubLevelStepId)})` : ''}.`,
+  }),
+);
 
-const earningTemplateFamilyScopes = payTemplateBlueprints.map((blueprint, index) => ({
-  id: index + 1,
-  earningTemplateFamilyId: index + 1,
-  scopeType: blueprint.template.targetType.toUpperCase(),
-  scopeRefId: positionIdBySourceId.get(blueprint.template.targetId),
-  isPrimary: true,
-  notes: blueprint.template.targetSubLevelStepId
-    ? `Applies to imported position sub-level ${sanitizeText(blueprint.template.targetSubLevelStepId)}.`
-    : 'Applies to the imported standard position package.',
-}));
+const earningTemplateFamilyScopes = payTemplateBlueprints.map(
+  (blueprint, index) => ({
+    id: index + 1,
+    earningTemplateFamilyId: index + 1,
+    scopeType: blueprint.template.targetType.toUpperCase(),
+    scopeRefId: positionIdBySourceId.get(blueprint.template.targetId),
+    isPrimary: true,
+    notes: blueprint.template.targetSubLevelStepId
+      ? `Applies to imported position sub-level ${sanitizeText(blueprint.template.targetSubLevelStepId)}.`
+      : 'Applies to the imported standard position package.',
+  }),
+);
 
-const earningTemplateRevisions = payTemplateBlueprints.map((blueprint, index) => ({
-  id: index + 1,
-  earningTemplateFamilyId: index + 1,
-  versionNo: 'v2.0.0',
-  currencyCode: 'PHP',
-  effectiveStartDate: orgStructureEffectiveStart,
-  isCurrent: true,
-  changeSummary: `Imported from unified-HRIS template ${sanitizeText(blueprint.template.id)}.`,
-}));
+const earningTemplateRevisions = payTemplateBlueprints.map(
+  (blueprint, index) => ({
+    id: index + 1,
+    earningTemplateFamilyId: index + 1,
+    versionNo: 'v2.0.0',
+    currencyCode: 'PHP',
+    effectiveStartDate: orgStructureEffectiveStart,
+    isCurrent: true,
+    changeSummary: `Imported from unified-HRIS template ${sanitizeText(blueprint.template.id)}.`,
+  }),
+);
 
-const earningTemplateRevisionLines = payTemplateBlueprints.flatMap((blueprint, blueprintIndex) =>
-  blueprint.template.components
-    .filter((componentId) => earningComponentIdBySourceId.has(componentId))
-    .map((componentId, componentIndex) => ({
-      id: blueprintIndex * 10 + componentIndex + 1,
-      earningTemplateRevisionId: blueprintIndex + 1,
-      earningComponentId: earningComponentIdBySourceId.get(componentId)!,
-      sortOrder: componentIndex + 1,
-      isRequired: componentId === 'pc-basic' || componentId === 'pc-meal' || componentId === 'pc-trans',
-    })),
+const earningTemplateRevisionLines = payTemplateBlueprints.flatMap(
+  (blueprint, blueprintIndex) =>
+    blueprint.template.components
+      .filter((componentId) => earningComponentIdBySourceId.has(componentId))
+      .map((componentId, componentIndex) => ({
+        id: blueprintIndex * 10 + componentIndex + 1,
+        earningTemplateRevisionId: blueprintIndex + 1,
+        earningComponentId: earningComponentIdBySourceId.get(componentId)!,
+        sortOrder: componentIndex + 1,
+        isRequired:
+          componentId === 'pc-basic' ||
+          componentId === 'pc-meal' ||
+          componentId === 'pc-trans',
+      })),
 );
 
 const templateFamilyIdByTargetKey = new Map<string, number>();
@@ -1182,7 +1454,12 @@ for (const blueprint of payTemplateBlueprints) {
   );
 }
 
-function resolveTemplateFamilyId(sourcePosition: SourcePosition | undefined): number {
+/**
+ * Resolves the earning template family assigned to an employee's source position for EmployeePayProfile rows.
+ */
+function resolveTemplateFamilyId(
+  sourcePosition: SourcePosition | undefined,
+): number {
   if (!sourcePosition) {
     return 1;
   }
@@ -1198,8 +1475,12 @@ function resolveTemplateFamilyId(sourcePosition: SourcePosition | undefined): nu
     return byPosition;
   }
 
-  const siblings = payTemplateBlueprints.find((blueprint) => blueprint.template.targetId === sourcePosition.id);
-  return siblings ? earningTemplateFamilyIdBySourceId.get(siblings.template.id)! : 1;
+  const siblings = payTemplateBlueprints.find(
+    (blueprint) => blueprint.template.targetId === sourcePosition.id,
+  );
+  return siblings
+    ? earningTemplateFamilyIdBySourceId.get(siblings.template.id)!
+    : 1;
 }
 
 const baseEmployeePayProfiles = transformedEmployees.map((employee) => ({
@@ -1213,43 +1494,48 @@ const baseEmployeePayProfiles = transformedEmployees.map((employee) => ({
   notes: `Assigned from imported position ${employee.sourceEmployee.positionId}.`,
 }));
 
-const recentEmployees = transformedEmployees.filter((employee) =>
-  new Date(employee.employmentStartDate).getUTCFullYear() >= 2025,
+const recentEmployees = transformedEmployees.filter(
+  (employee) => new Date(employee.employmentStartDate).getUTCFullYear() >= 2025,
 );
 
-const employeeOnboardingRecords = recentEmployees.slice(0, 28).map((employee, index) => ({
-  id: index + 1,
-  employeeId: employee.employeeId,
-  status:
-    employee.employmentStatus === 'Probationary'
-      ? 'In Progress'
-      : 'Completed',
-  startDate: employee.employmentStartDate,
-  completedStepsJson: {
-    documents: true,
-    orientation: true,
-    systemAccess: employee.track !== 'operations',
-    managerBriefing: true,
-    statutoryEnrollment: employee.track !== 'operations',
-  },
-  notes:
-    employee.employmentStatus === 'Probationary'
-      ? 'Imported recent hire still within structured onboarding window.'
-      : 'Imported onboarding checklist completed during rollout.',
-}));
+const employeeOnboardingRecords = recentEmployees
+  .slice(0, 28)
+  .map((employee, index) => ({
+    id: index + 1,
+    employeeId: employee.employeeId,
+    status:
+      employee.employmentStatus === 'Probationary'
+        ? 'In Progress'
+        : 'Completed',
+    startDate: employee.employmentStartDate,
+    completedStepsJson: {
+      documents: true,
+      orientation: true,
+      systemAccess: employee.track !== 'operations',
+      managerBriefing: true,
+      statutoryEnrollment: employee.track !== 'operations',
+    },
+    notes:
+      employee.employmentStatus === 'Probationary'
+        ? 'Imported recent hire still within structured onboarding window.'
+        : 'Imported onboarding checklist completed during rollout.',
+  }));
 
 const separatedEmployees = transformedEmployees.filter(
   (employee) => employee.employmentStatus === 'Separated',
 );
 
-const employeeOffboardingRecords = separatedEmployees.map((employee, index) => ({
-  id: index + 1,
-  employeeId: employee.employeeId,
-  reason: index % 2 === 0 ? 'Resignation' : 'End of Contract',
-  effectiveDate: employee.employmentEndDate,
-  clearanceStatus: index % 2 === 0 ? 'Completed' : 'In Progress',
-  notes: 'Imported offboarding case retained for Phase 1 separation and clearance testing.',
-}));
+const employeeOffboardingRecords = separatedEmployees.map(
+  (employee, index) => ({
+    id: index + 1,
+    employeeId: employee.employeeId,
+    reason: index % 2 === 0 ? 'Resignation' : 'End of Contract',
+    effectiveDate: employee.employmentEndDate,
+    clearanceStatus: index % 2 === 0 ? 'Completed' : 'In Progress',
+    notes:
+      'Imported offboarding case retained for Phase 1 separation and clearance testing.',
+  }),
+);
 
 const loaCandidate = transformedEmployees.find(
   (employee) =>
@@ -1260,15 +1546,22 @@ const regularizationCandidate = transformedEmployees.find(
   (employee) => employee.employmentStatus === 'Probationary',
 )!;
 const payProfileCandidate = transformedEmployees.find(
-  (employee) => employee.track === 'technology' && employee.employeeStatus === 'Active',
+  (employee) =>
+    employee.track === 'technology' && employee.employeeStatus === 'Active',
 )!;
 const separationCandidate = separatedEmployees[0];
 const transferDraftCandidate = transformedEmployees.find(
-  (employee) => employee.track === 'people' && employee.employeeStatus === 'Active',
+  (employee) =>
+    employee.track === 'people' && employee.employeeStatus === 'Active',
 )!;
 
+/**
+ * Retrieves named leadership employees so users, approval sequences, and workflow seeds share the same key people.
+ */
 const keyEmployeeByRole = (role: string) =>
-  transformedEmployees.find((employee) => employee.sourceEmployee.role === role)!;
+  transformedEmployees.find(
+    (employee) => employee.sourceEmployee.role === role,
+  )!;
 
 const keyEmployees = {
   chro: keyEmployeeByRole('CHRO'),
@@ -1282,21 +1575,23 @@ const keyEmployees = {
 };
 
 const employeeSelfServiceUser = transformedEmployees.find(
-  (employee) => employee.employeeId === PHASE1_DEMO_ACCOUNT_MAP.employee.employeeId,
+  (employee) =>
+    employee.employeeId === BOOTSTRAP_ACCOUNT_MAP.employee.employeeId,
 )!;
 
 const users = [
   {
     id: 1,
-    email: PHASE1_DEMO_ACCOUNT_MAP.superadmin.email,
+    email: BOOTSTRAP_ACCOUNT_MAP.superadmin.email,
     firstName: 'Platform',
     lastName: 'Admin',
-    displayName: PHASE1_DEMO_ACCOUNT_MAP.superadmin.displayName,
+    displayName: BOOTSTRAP_ACCOUNT_MAP.superadmin.displayName,
     status: 'ACTIVE',
   },
   {
     id: 2,
     email: keyEmployees.chro.email,
+    employeeId: keyEmployees.chro.employeeId,
     firstName: keyEmployees.chro.firstName,
     lastName: keyEmployees.chro.lastName,
     displayName: keyEmployees.chro.displayName,
@@ -1304,15 +1599,17 @@ const users = [
   },
   {
     id: 3,
-    email: PHASE1_DEMO_ACCOUNT_MAP.approver.email,
+    email: BOOTSTRAP_ACCOUNT_MAP.approver.email,
+    employeeId: keyEmployees.vpHr.employeeId,
     firstName: keyEmployees.vpHr.firstName,
     lastName: keyEmployees.vpHr.lastName,
-    displayName: PHASE1_DEMO_ACCOUNT_MAP.approver.displayName,
+    displayName: BOOTSTRAP_ACCOUNT_MAP.approver.displayName,
     status: 'ACTIVE',
   },
   {
     id: 4,
     email: keyEmployees.hrSupervisor.email,
+    employeeId: keyEmployees.hrSupervisor.employeeId,
     firstName: keyEmployees.hrSupervisor.firstName,
     lastName: keyEmployees.hrSupervisor.lastName,
     displayName: keyEmployees.hrSupervisor.displayName,
@@ -1321,6 +1618,7 @@ const users = [
   {
     id: 5,
     email: keyEmployees.accountingManager.email,
+    employeeId: keyEmployees.accountingManager.employeeId,
     firstName: keyEmployees.accountingManager.firstName,
     lastName: keyEmployees.accountingManager.lastName,
     displayName: keyEmployees.accountingManager.displayName,
@@ -1329,6 +1627,7 @@ const users = [
   {
     id: 6,
     email: keyEmployees.vpIt.email,
+    employeeId: keyEmployees.vpIt.employeeId,
     firstName: keyEmployees.vpIt.firstName,
     lastName: keyEmployees.vpIt.lastName,
     displayName: keyEmployees.vpIt.displayName,
@@ -1337,6 +1636,7 @@ const users = [
   {
     id: 7,
     email: keyEmployees.itManager.email,
+    employeeId: keyEmployees.itManager.employeeId,
     firstName: keyEmployees.itManager.firstName,
     lastName: keyEmployees.itManager.lastName,
     displayName: keyEmployees.itManager.displayName,
@@ -1345,6 +1645,7 @@ const users = [
   {
     id: 8,
     email: keyEmployees.hrSpecialist.email,
+    employeeId: keyEmployees.hrSpecialist.employeeId,
     firstName: keyEmployees.hrSpecialist.firstName,
     lastName: keyEmployees.hrSpecialist.lastName,
     displayName: keyEmployees.hrSpecialist.displayName,
@@ -1352,35 +1653,187 @@ const users = [
   },
   {
     id: 9,
-    email: PHASE1_DEMO_ACCOUNT_MAP.employee.email,
+    email: BOOTSTRAP_ACCOUNT_MAP.employee.email,
+    employeeId: employeeSelfServiceUser.employeeId,
     firstName: employeeSelfServiceUser.firstName,
     lastName: employeeSelfServiceUser.lastName,
-    displayName: PHASE1_DEMO_ACCOUNT_MAP.employee.displayName,
+    displayName: BOOTSTRAP_ACCOUNT_MAP.employee.displayName,
     status: 'ACTIVE',
   },
 ];
 
+const userCredentials = users.map((user) => ({
+  id: user.id,
+  userId: user.id,
+  passwordHash: seedPasswordHash,
+  passwordUpdatedAt: nowIso,
+  mustChangePassword: false,
+  failedLoginCount: 0,
+  createdBy: 1,
+  updatedBy: 1,
+}));
+
 const roles = [
-  { id: 1, code: 'SUPERADMIN', name: 'Superadmin', description: 'Full platform access across all Phase 1 modules' },
-  { id: 2, code: 'APPROVER', name: 'Approver', description: 'Acts on routed personnel and pay approvals' },
-  { id: 3, code: 'EMPLOYEE', name: 'Employee', description: 'Uses employee self-service and personal profile workflows' },
+  {
+    id: 1,
+    code: 'SUPERADMIN',
+    name: 'Superadmin',
+    description: 'Full platform access across all Phase 1 modules',
+  },
+  {
+    id: 2,
+    code: 'APPROVER',
+    name: 'Approver',
+    description: 'Acts on routed personnel and pay approvals',
+  },
+  {
+    id: 3,
+    code: 'EMPLOYEE',
+    name: 'Employee',
+    description: 'Uses employee self-service and personal profile workflows',
+  },
 ];
 
 const permissions = [
-  { id: 1, code: 'ORG_MANAGE', name: 'Manage Org Structure', description: 'Can manage org structure resources' },
-  { id: 2, code: 'PERSONNEL_MANAGE', name: 'Manage Personnel', description: 'Can manage personnel resources' },
-  { id: 3, code: 'PAY_STRUCTURE_MANAGE', name: 'Manage Pay Structure', description: 'Can manage pay structure resources' },
-  { id: 4, code: 'APPROVALS_MANAGE', name: 'Manage Approvals', description: 'Can manage approval resources' },
-  { id: 5, code: 'RBAC_MANAGE', name: 'Manage RBAC', description: 'Can manage roles, permissions, and users' },
+  {
+    id: 1,
+    code: 'ORG_READ',
+    name: 'Read Org Structure',
+    description: 'Can read org structure resources',
+  },
+  {
+    id: 2,
+    code: 'ORG_MANAGE',
+    name: 'Manage Org Structure',
+    description: 'Can manage org structure resources',
+  },
+  {
+    id: 3,
+    code: 'PERSONNEL_READ',
+    name: 'Read Personnel',
+    description: 'Can read personnel resources',
+  },
+  {
+    id: 4,
+    code: 'PERSONNEL_SELF_READ',
+    name: 'Read Own Personnel',
+    description: 'Can read own employee self-service records',
+  },
+  {
+    id: 5,
+    code: 'PERSONNEL_MANAGE',
+    name: 'Manage Personnel',
+    description: 'Can manage personnel resources',
+  },
+  {
+    id: 6,
+    code: 'PAY_STRUCTURE_READ',
+    name: 'Read Pay Structure',
+    description: 'Can read pay structure resources',
+  },
+  {
+    id: 7,
+    code: 'PAY_STRUCTURE_SELF_READ',
+    name: 'Read Own Pay Profile',
+    description: 'Can read own employee pay profile records',
+  },
+  {
+    id: 8,
+    code: 'PAY_STRUCTURE_MANAGE',
+    name: 'Manage Pay Structure',
+    description: 'Can manage pay structure resources',
+  },
+  {
+    id: 9,
+    code: 'APPROVALS_READ',
+    name: 'Read Approvals',
+    description: 'Can read approval resources',
+  },
+  {
+    id: 10,
+    code: 'APPROVALS_SELF_READ',
+    name: 'Read Own Approvals',
+    description: 'Can read own approval requests',
+  },
+  {
+    id: 11,
+    code: 'APPROVALS_APPROVE',
+    name: 'Approve Requests',
+    description: 'Can act on routed approval requests',
+  },
+  {
+    id: 12,
+    code: 'APPROVALS_MANAGE',
+    name: 'Manage Approvals',
+    description: 'Can manage approval resources',
+  },
+  {
+    id: 13,
+    code: 'RBAC_READ',
+    name: 'Read RBAC',
+    description: 'Can read roles, permissions, and users',
+  },
+  {
+    id: 14,
+    code: 'RBAC_MANAGE',
+    name: 'Manage RBAC',
+    description: 'Can manage roles, permissions, and users',
+  },
+  {
+    id: 15,
+    code: 'PERSONNEL_SENSITIVE_READ',
+    name: 'Read Sensitive Personnel',
+    description: 'Can read sensitive statutory and banking personnel fields',
+  },
 ];
 
 const systemModules = [
-  { id: 1, code: 'ORG_STRUCTURE', name: 'Org Structure', description: 'Organization structure and job architecture' },
-  { id: 2, code: 'PERSONNEL', name: 'Personnel', description: 'Personnel information system' },
-  { id: 3, code: 'PAY_STRUCTURE', name: 'Pay Structure', description: 'Pay templates and employee pay setup' },
-  { id: 4, code: 'APPROVALS', name: 'Approvals', description: 'Approval workflow configuration' },
+  {
+    id: 1,
+    code: 'ORG_STRUCTURE',
+    name: 'Org Structure',
+    description: 'Organization structure and job architecture',
+  },
+  {
+    id: 2,
+    code: 'PERSONNEL',
+    name: 'Personnel',
+    description: 'Personnel information system',
+  },
+  {
+    id: 3,
+    code: 'PAY_STRUCTURE',
+    name: 'Pay Structure',
+    description: 'Pay templates and employee pay setup',
+  },
+  {
+    id: 4,
+    code: 'APPROVALS',
+    name: 'Approvals',
+    description: 'Approval workflow configuration',
+  },
   { id: 5, code: 'RBAC', name: 'RBAC', description: 'Roles and permissions' },
 ];
+
+function systemModuleIdForPermissionCode(code: string): number {
+  if (code.startsWith('ORG_')) {
+    return 1;
+  }
+  if (code.startsWith('PERSONNEL_')) {
+    return 2;
+  }
+  if (code.startsWith('PAY_STRUCTURE_')) {
+    return 3;
+  }
+  if (code.startsWith('APPROVALS_')) {
+    return 4;
+  }
+  if (code.startsWith('RBAC_')) {
+    return 5;
+  }
+
+  throw new Error(`No system module mapping for permission ${code}.`);
+}
 
 const permissionModuleConfigs = systemModules.map((module) => ({
   id: module.id,
@@ -1392,77 +1845,297 @@ const permissionModuleConfigs = systemModules.map((module) => ({
 
 const permissionModuleConfigScopes = [
   { id: 1, permissionModuleConfigId: 1, code: 'ORG_GLOBAL', name: 'Global' },
-  { id: 2, permissionModuleConfigId: 1, code: 'ORG_ORG_UNIT', name: 'Org Unit' },
-  { id: 3, permissionModuleConfigId: 2, code: 'PERSONNEL_GLOBAL', name: 'Global' },
-  { id: 4, permissionModuleConfigId: 2, code: 'PERSONNEL_EMPLOYEE', name: 'Employee' },
-  { id: 5, permissionModuleConfigId: 3, code: 'PAY_POSITION', name: 'Position' },
-  { id: 6, permissionModuleConfigId: 3, code: 'PAY_EMPLOYEE', name: 'Employee' },
-  { id: 7, permissionModuleConfigId: 4, code: 'APPROVALS_GLOBAL', name: 'Global' },
-  { id: 8, permissionModuleConfigId: 4, code: 'APPROVALS_ORG_UNIT', name: 'Org Unit' },
+  {
+    id: 2,
+    permissionModuleConfigId: 1,
+    code: 'ORG_ORG_UNIT',
+    name: 'Org Unit',
+  },
+  {
+    id: 3,
+    permissionModuleConfigId: 2,
+    code: 'PERSONNEL_GLOBAL',
+    name: 'Global',
+  },
+  {
+    id: 4,
+    permissionModuleConfigId: 2,
+    code: 'PERSONNEL_EMPLOYEE',
+    name: 'Employee',
+  },
+  {
+    id: 5,
+    permissionModuleConfigId: 3,
+    code: 'PAY_POSITION',
+    name: 'Position',
+  },
+  {
+    id: 6,
+    permissionModuleConfigId: 3,
+    code: 'PAY_EMPLOYEE',
+    name: 'Employee',
+  },
+  {
+    id: 7,
+    permissionModuleConfigId: 4,
+    code: 'APPROVALS_GLOBAL',
+    name: 'Global',
+  },
+  {
+    id: 8,
+    permissionModuleConfigId: 4,
+    code: 'APPROVALS_ORG_UNIT',
+    name: 'Org Unit',
+  },
   { id: 9, permissionModuleConfigId: 5, code: 'RBAC_GLOBAL', name: 'Global' },
 ];
 
-const permissionModuleConfigActions = [
-  { id: 1, permissionModuleConfigId: 1, code: 'ORG_MANAGE', name: 'Manage Org Structure' },
-  { id: 2, permissionModuleConfigId: 2, code: 'PERSONNEL_MANAGE', name: 'Manage Personnel' },
-  { id: 3, permissionModuleConfigId: 3, code: 'PAY_MANAGE', name: 'Manage Pay Structure' },
-  { id: 4, permissionModuleConfigId: 4, code: 'APPROVALS_APPROVE', name: 'Approve Requests' },
-  { id: 5, permissionModuleConfigId: 5, code: 'RBAC_MANAGE', name: 'Manage RBAC' },
-];
+const permissionModuleConfigActions = permissions.map((permission) => ({
+  id: permission.id,
+  permissionModuleConfigId: systemModuleIdForPermissionCode(permission.code),
+  code: permission.code,
+  name: permission.name,
+}));
 
 const permissionModuleConfigStates = [
   { id: 1, permissionModuleConfigId: 1, code: 'ORG_ACTIVE', name: 'Active' },
-  { id: 2, permissionModuleConfigId: 2, code: 'PERSONNEL_ACTIVE', name: 'Active' },
+  {
+    id: 2,
+    permissionModuleConfigId: 2,
+    code: 'PERSONNEL_ACTIVE',
+    name: 'Active',
+  },
   { id: 3, permissionModuleConfigId: 3, code: 'PAY_ACTIVE', name: 'Active' },
-  { id: 4, permissionModuleConfigId: 4, code: 'APPROVALS_PENDING', name: 'Pending' },
-  { id: 5, permissionModuleConfigId: 4, code: 'APPROVALS_APPROVED', name: 'Approved' },
+  {
+    id: 4,
+    permissionModuleConfigId: 4,
+    code: 'APPROVALS_PENDING',
+    name: 'Pending',
+  },
+  {
+    id: 5,
+    permissionModuleConfigId: 4,
+    code: 'APPROVALS_APPROVED',
+    name: 'Approved',
+  },
   { id: 6, permissionModuleConfigId: 5, code: 'RBAC_ACTIVE', name: 'Active' },
 ];
 
 const userRoleAssignments = [
-  { id: 1, userId: 1, roleId: 1, isActive: true, assignedAt: roleAssignmentStart },
-  { id: 2, userId: 2, roleId: 2, isActive: true, assignedAt: roleAssignmentStart },
-  { id: 3, userId: 3, roleId: 2, isActive: true, assignedAt: roleAssignmentStart },
-  { id: 4, userId: 4, roleId: 2, isActive: true, assignedAt: roleAssignmentStart },
-  { id: 5, userId: 5, roleId: 2, isActive: true, assignedAt: roleAssignmentStart },
-  { id: 6, userId: 6, roleId: 2, isActive: true, assignedAt: roleAssignmentStart },
-  { id: 7, userId: 7, roleId: 2, isActive: true, assignedAt: roleAssignmentStart },
-  { id: 8, userId: 8, roleId: 3, isActive: true, assignedAt: roleAssignmentStart },
-  { id: 9, userId: 9, roleId: 3, isActive: true, assignedAt: roleAssignmentStart },
+  {
+    id: 1,
+    userId: 1,
+    roleId: 1,
+    isActive: true,
+    isPrimary: true,
+    assignedAt: roleAssignmentStart,
+  },
+  {
+    id: 2,
+    userId: 2,
+    roleId: 2,
+    isActive: true,
+    isPrimary: true,
+    assignedAt: roleAssignmentStart,
+  },
+  {
+    id: 3,
+    userId: 3,
+    roleId: 2,
+    isActive: true,
+    isPrimary: true,
+    assignedAt: roleAssignmentStart,
+  },
+  {
+    id: 4,
+    userId: 4,
+    roleId: 2,
+    isActive: true,
+    isPrimary: true,
+    assignedAt: roleAssignmentStart,
+  },
+  {
+    id: 5,
+    userId: 5,
+    roleId: 2,
+    isActive: true,
+    isPrimary: true,
+    assignedAt: roleAssignmentStart,
+  },
+  {
+    id: 6,
+    userId: 6,
+    roleId: 2,
+    isActive: true,
+    isPrimary: true,
+    assignedAt: roleAssignmentStart,
+  },
+  {
+    id: 7,
+    userId: 7,
+    roleId: 2,
+    isActive: true,
+    isPrimary: true,
+    assignedAt: roleAssignmentStart,
+  },
+  {
+    id: 8,
+    userId: 8,
+    roleId: 3,
+    isActive: true,
+    isPrimary: true,
+    assignedAt: roleAssignmentStart,
+  },
+  {
+    id: 9,
+    userId: 9,
+    roleId: 3,
+    isActive: true,
+    isPrimary: true,
+    assignedAt: roleAssignmentStart,
+  },
 ];
 
-const rolePermissionAssignments = [
-  ...permissions.map((permission, index) => ({
-    id: index + 1,
+const permissionIdByCode = new Map(
+  permissions.map((permission) => [permission.code, permission.id]),
+);
+
+const rolePermissionEntries = [
+  ...permissions.map((permission) => ({
     roleId: 1,
-    permissionId: permission.id,
-    systemModuleId: permission.id,
-    isActive: true,
+    permissionCode: permission.code,
   })),
-  { id: 6, roleId: 2, permissionId: 1, systemModuleId: 1, isActive: true },
-  { id: 7, roleId: 2, permissionId: 2, systemModuleId: 2, isActive: true },
-  { id: 8, roleId: 2, permissionId: 3, systemModuleId: 3, isActive: true },
-  { id: 9, roleId: 2, permissionId: 4, systemModuleId: 4, isActive: true },
-  { id: 10, roleId: 3, permissionId: 2, systemModuleId: 2, isActive: true },
+  ...[
+    'ORG_READ',
+    'PERSONNEL_READ',
+    'PAY_STRUCTURE_READ',
+    'APPROVALS_READ',
+    'APPROVALS_APPROVE',
+  ].map((permissionCode) => ({ roleId: 2, permissionCode })),
+  ...[
+    'PERSONNEL_SELF_READ',
+    'PAY_STRUCTURE_SELF_READ',
+    'APPROVALS_SELF_READ',
+  ].map((permissionCode) => ({ roleId: 3, permissionCode })),
 ];
+
+const rolePermissionAssignments = rolePermissionEntries.map((entry, index) => {
+  const permissionId = permissionIdByCode.get(entry.permissionCode);
+
+  if (!permissionId) {
+    throw new Error(`Missing permission seed for ${entry.permissionCode}.`);
+  }
+
+  return {
+    id: index + 1,
+    roleId: entry.roleId,
+    permissionId,
+    systemModuleId: systemModuleIdForPermissionCode(entry.permissionCode),
+    isActive: true,
+  };
+});
 
 const userSessions = [
-  { id: 1, userId: 1, status: 'ACTIVE', userAgent: 'Seed Platform Session', ipAddress: '127.0.0.1', lastSeenAt: nowIso },
-  { id: 2, userId: 2, status: 'ACTIVE', userAgent: 'Seed CHRO Session', ipAddress: '127.0.0.1', lastSeenAt: '2026-04-21T07:45:00.000Z' },
-  { id: 3, userId: 3, status: 'ACTIVE', userAgent: 'Seed VP HR Session', ipAddress: '127.0.0.1', lastSeenAt: '2026-04-21T07:30:00.000Z' },
-  { id: 4, userId: 9, status: 'ACTIVE', userAgent: 'Seed Employee Session', ipAddress: '127.0.0.1', lastSeenAt: '2026-04-21T06:55:00.000Z' },
+  {
+    id: 1,
+    userId: 1,
+    status: 'ACTIVE',
+    userAgent: 'Seed Platform Session',
+    ipAddress: '127.0.0.1',
+    lastSeenAt: nowIso,
+  },
+  {
+    id: 2,
+    userId: 2,
+    status: 'ACTIVE',
+    userAgent: 'Seed CHRO Session',
+    ipAddress: '127.0.0.1',
+    lastSeenAt: '2026-04-21T07:45:00.000Z',
+  },
+  {
+    id: 3,
+    userId: 3,
+    status: 'ACTIVE',
+    userAgent: 'Seed VP HR Session',
+    ipAddress: '127.0.0.1',
+    lastSeenAt: '2026-04-21T07:30:00.000Z',
+  },
+  {
+    id: 4,
+    userId: 9,
+    status: 'ACTIVE',
+    userAgent: 'Seed Employee Session',
+    ipAddress: '127.0.0.1',
+    lastSeenAt: '2026-04-21T06:55:00.000Z',
+  },
 ];
 
 const userAuthTokens = [
-  { id: 1, userId: 1, tokenType: 'PERSONAL_ACCESS', tokenHash: 'seed-token-platform-admin', expiresAt: '2027-04-21T08:00:00.000Z' },
-  { id: 2, userId: 2, tokenType: 'PERSONAL_ACCESS', tokenHash: 'seed-token-chro', expiresAt: '2027-04-21T08:00:00.000Z' },
-  { id: 3, userId: 3, tokenType: 'PERSONAL_ACCESS', tokenHash: 'seed-token-vp-hr', expiresAt: '2027-04-21T08:00:00.000Z' },
-  { id: 4, userId: 9, tokenType: 'PERSONAL_ACCESS', tokenHash: 'seed-token-employee', expiresAt: '2027-04-21T08:00:00.000Z' },
+  {
+    id: 1,
+    userId: 1,
+    tokenType: 'PERSONAL_ACCESS',
+    tokenHash: 'seed-token-platform-admin',
+    expiresAt: '2027-04-21T08:00:00.000Z',
+  },
+  {
+    id: 2,
+    userId: 2,
+    tokenType: 'PERSONAL_ACCESS',
+    tokenHash: 'seed-token-chro',
+    expiresAt: '2027-04-21T08:00:00.000Z',
+  },
+  {
+    id: 3,
+    userId: 3,
+    tokenType: 'PERSONAL_ACCESS',
+    tokenHash: 'seed-token-vp-hr',
+    expiresAt: '2027-04-21T08:00:00.000Z',
+  },
+  {
+    id: 4,
+    userId: 9,
+    tokenType: 'PERSONAL_ACCESS',
+    tokenHash: 'seed-token-employee',
+    expiresAt: '2027-04-21T08:00:00.000Z',
+  },
+];
+
+const auditEvents = [
+  {
+    id: 1,
+    actorUserId: 1,
+    eventType: 'SEED_DATABASE_READY',
+    entityType: 'Seed',
+    entityId: 'phase1-100-employees',
+    route: 'prisma/seed.ts',
+    metadataJson: {
+      employeeCount: SEED_EMPLOYEE_TOTAL,
+      authSource: 'UserCredential.passwordHash',
+      authorizationSource: 'RolePermissionAssignment',
+    },
+    createdAt: nowIso,
+  },
 ];
 
 const approvalSetups = [
-  { id: 1, code: 'PAF_APPROVAL', name: 'Personnel Action Approval Flow', moduleKey: 'PERSONNEL', actionType: 'PAF', description: 'Default approval flow for personnel action forms' },
-  { id: 2, code: 'PAY_PROFILE_APPROVAL', name: 'Employee Pay Profile Approval', moduleKey: 'PAY_STRUCTURE', actionType: 'EMPLOYEE_PAY_PROFILE', description: 'Approval flow for pay profile changes and template exceptions' },
+  {
+    id: 1,
+    code: 'PAF_APPROVAL',
+    name: 'Personnel Action Approval Flow',
+    moduleKey: 'PERSONNEL',
+    actionType: 'PAF',
+    description: 'Default approval flow for personnel action forms',
+  },
+  {
+    id: 2,
+    code: 'PAY_PROFILE_APPROVAL',
+    name: 'Employee Pay Profile Approval',
+    moduleKey: 'PAY_STRUCTURE',
+    actionType: 'EMPLOYEE_PAY_PROFILE',
+    description:
+      'Approval flow for pay profile changes and template exceptions',
+  },
 ];
 
 const approverSequences = [
@@ -1472,7 +2145,9 @@ const approverSequences = [
     stepNo: 1,
     name: 'HRBP Review',
     approverUserId: 4,
-    approverPositionId: positionIdBySourceId.get(keyEmployees.hrSupervisor.sourceEmployee.positionId),
+    approverPositionId: positionIdBySourceId.get(
+      keyEmployees.hrSupervisor.sourceEmployee.positionId,
+    ),
     requiredApprovals: 1,
   },
   {
@@ -1481,7 +2156,9 @@ const approverSequences = [
     stepNo: 2,
     name: 'VP HR Review',
     approverUserId: 3,
-    approverPositionId: positionIdBySourceId.get(keyEmployees.vpHr.sourceEmployee.positionId),
+    approverPositionId: positionIdBySourceId.get(
+      keyEmployees.vpHr.sourceEmployee.positionId,
+    ),
     requiredApprovals: 1,
   },
   {
@@ -1490,7 +2167,9 @@ const approverSequences = [
     stepNo: 3,
     name: 'CHRO Approval',
     approverUserId: 2,
-    approverPositionId: positionIdBySourceId.get(keyEmployees.chro.sourceEmployee.positionId),
+    approverPositionId: positionIdBySourceId.get(
+      keyEmployees.chro.sourceEmployee.positionId,
+    ),
     requiredApprovals: 1,
   },
   {
@@ -1499,7 +2178,9 @@ const approverSequences = [
     stepNo: 1,
     name: 'Finance Review',
     approverUserId: 5,
-    approverPositionId: positionIdBySourceId.get(keyEmployees.accountingManager.sourceEmployee.positionId),
+    approverPositionId: positionIdBySourceId.get(
+      keyEmployees.accountingManager.sourceEmployee.positionId,
+    ),
     requiredApprovals: 1,
   },
   {
@@ -1508,7 +2189,9 @@ const approverSequences = [
     stepNo: 2,
     name: 'Executive Sponsor Approval',
     approverUserId: 6,
-    approverPositionId: positionIdBySourceId.get(keyEmployees.vpIt.sourceEmployee.positionId),
+    approverPositionId: positionIdBySourceId.get(
+      keyEmployees.vpIt.sourceEmployee.positionId,
+    ),
     requiredApprovals: 1,
   },
 ];
@@ -1521,15 +2204,58 @@ const approvalSequenceSecondaryApprovers = [
 ];
 
 const approvalDelegations = [
-  { id: 1, fromUserId: 2, toUserId: 3, startDate: '2026-04-22T00:00:00.000Z', endDate: '2026-04-26T00:00:00.000Z', reason: 'CHRO attending regional leadership summit', status: 'ACTIVE' },
-  { id: 2, fromUserId: 6, toUserId: 7, startDate: '2026-04-18T00:00:00.000Z', endDate: '2026-04-24T00:00:00.000Z', reason: 'VP IT on enterprise client roadshow', status: 'ACTIVE' },
+  {
+    id: 1,
+    fromUserId: 2,
+    toUserId: 3,
+    startDate: '2026-04-22T00:00:00.000Z',
+    endDate: '2026-04-26T00:00:00.000Z',
+    reason: 'CHRO attending regional leadership summit',
+    status: 'ACTIVE',
+  },
+  {
+    id: 2,
+    fromUserId: 6,
+    toUserId: 7,
+    startDate: '2026-04-18T00:00:00.000Z',
+    endDate: '2026-04-24T00:00:00.000Z',
+    reason: 'VP IT on enterprise client roadshow',
+    status: 'ACTIVE',
+  },
 ];
 
 const workflowAssignments = [
-  { id: 1, approvalSetupId: 1, scopeType: 'ORG_UNIT', scopeRefId: orgUnitIdBySourceId.get('ou-corp-115'), isActive: true, notes: 'Applies to Human Resource Management actions' },
-  { id: 2, approvalSetupId: 1, scopeType: 'ORG_UNIT', scopeRefId: orgUnitIdBySourceId.get('ou-corp-111'), isActive: true, notes: 'Applies to Information Technology actions' },
-  { id: 3, approvalSetupId: 1, scopeType: 'ORG_UNIT', scopeRefId: orgUnitIdBySourceId.get('ou-corp-4'), isActive: true, notes: 'Applies to national sales field actions' },
-  { id: 4, approvalSetupId: 2, scopeType: 'GLOBAL', isActive: true, notes: 'Default approval for all pay profile changes' },
+  {
+    id: 1,
+    approvalSetupId: 1,
+    scopeType: 'ORG_UNIT',
+    scopeRefId: orgUnitIdBySourceId.get('ou-corp-115'),
+    isActive: true,
+    notes: 'Applies to Human Resource Management actions',
+  },
+  {
+    id: 2,
+    approvalSetupId: 1,
+    scopeType: 'ORG_UNIT',
+    scopeRefId: orgUnitIdBySourceId.get('ou-corp-111'),
+    isActive: true,
+    notes: 'Applies to Information Technology actions',
+  },
+  {
+    id: 3,
+    approvalSetupId: 1,
+    scopeType: 'ORG_UNIT',
+    scopeRefId: orgUnitIdBySourceId.get('ou-corp-4'),
+    isActive: true,
+    notes: 'Applies to national sales field actions',
+  },
+  {
+    id: 4,
+    approvalSetupId: 2,
+    scopeType: 'GLOBAL',
+    isActive: true,
+    notes: 'Default approval for all pay profile changes',
+  },
 ];
 
 const pafRecords = [
@@ -1586,48 +2312,194 @@ const pafRecords = [
     actionType: 'Department Transfer',
     effectiveDate: '2026-06-01T00:00:00.000Z',
     payloadJson: {
-      fromOrgUnitId: orgUnitIdBySourceId.get(transferDraftCandidate.sourceEmployee.orgUnitId),
+      fromOrgUnitId: orgUnitIdBySourceId.get(
+        transferDraftCandidate.sourceEmployee.orgUnitId,
+      ),
       toOrgUnitId: orgUnitIdBySourceId.get('ou-corp-111'),
-      rationale: 'Align people analytics support with enterprise systems rollout.',
+      rationale:
+        'Align people analytics support with enterprise systems rollout.',
     },
     status: 'Draft',
   },
 ];
 
 const approvalRequests = [
-  { id: 1, approvalSetupId: 1, requestedByUserId: 4, employeeId: regularizationCandidate.employeeId, referenceType: 'PAF_RECORD', referenceId: 1, status: 'PENDING', submittedAt: '2026-04-18T02:30:00.000Z' },
-  { id: 2, approvalSetupId: 2, requestedByUserId: 7, employeeId: payProfileCandidate.employeeId, referenceType: 'EMPLOYEE_PAY_PROFILE', referenceId: payProfileCandidate.employeeId, status: 'APPROVED', submittedAt: '2026-04-11T03:00:00.000Z', resolvedAt: '2026-04-11T10:00:00.000Z' },
-  { id: 3, approvalSetupId: 1, requestedByUserId: 4, employeeId: loaCandidate.employeeId, referenceType: 'PAF_RECORD', referenceId: 3, status: 'APPROVED', submittedAt: '2026-04-08T00:15:00.000Z', resolvedAt: '2026-04-09T08:00:00.000Z' },
-  { id: 4, approvalSetupId: 1, requestedByUserId: 8, employeeId: separationCandidate.employeeId, referenceType: 'PAF_RECORD', referenceId: 2, status: 'APPROVED', submittedAt: '2026-04-03T01:00:00.000Z', resolvedAt: '2026-04-04T07:30:00.000Z' },
+  {
+    id: 1,
+    approvalSetupId: 1,
+    requestedByUserId: 4,
+    employeeId: regularizationCandidate.employeeId,
+    referenceType: 'PAF_RECORD',
+    referenceId: 1,
+    status: 'PENDING',
+    submittedAt: '2026-04-18T02:30:00.000Z',
+  },
+  {
+    id: 2,
+    approvalSetupId: 2,
+    requestedByUserId: 7,
+    employeeId: payProfileCandidate.employeeId,
+    referenceType: 'EMPLOYEE_PAY_PROFILE',
+    referenceId: payProfileCandidate.employeeId,
+    status: 'APPROVED',
+    submittedAt: '2026-04-11T03:00:00.000Z',
+    resolvedAt: '2026-04-11T10:00:00.000Z',
+  },
+  {
+    id: 3,
+    approvalSetupId: 1,
+    requestedByUserId: 4,
+    employeeId: loaCandidate.employeeId,
+    referenceType: 'PAF_RECORD',
+    referenceId: 3,
+    status: 'APPROVED',
+    submittedAt: '2026-04-08T00:15:00.000Z',
+    resolvedAt: '2026-04-09T08:00:00.000Z',
+  },
+  {
+    id: 4,
+    approvalSetupId: 1,
+    requestedByUserId: 8,
+    employeeId: separationCandidate.employeeId,
+    referenceType: 'PAF_RECORD',
+    referenceId: 2,
+    status: 'APPROVED',
+    submittedAt: '2026-04-03T01:00:00.000Z',
+    resolvedAt: '2026-04-04T07:30:00.000Z',
+  },
 ];
 
 const employeePayProfiles = baseEmployeePayProfiles.map((profile) => ({
   ...profile,
   approvalRequestId:
-    profile.employeeId === payProfileCandidate.employeeId
-      ? 2
-      : undefined,
+    profile.employeeId === payProfileCandidate.employeeId ? 2 : undefined,
 }));
 
 const approvalWorkflows = [
-  { id: 1, approvalRequestId: 1, approverSequenceId: 1, approverUserId: 4, status: 'APPROVED', actedAt: '2026-04-18T06:10:00.000Z', comments: 'Onboarding and probation review complete.' },
-  { id: 2, approvalRequestId: 1, approverSequenceId: 2, approverUserId: 3, status: 'PENDING' },
-  { id: 3, approvalRequestId: 2, approverSequenceId: 4, approverUserId: 5, status: 'APPROVED', actedAt: '2026-04-11T06:15:00.000Z', comments: 'Compensation package aligned to imported template revision.' },
-  { id: 4, approvalRequestId: 2, approverSequenceId: 5, approverUserId: 6, status: 'APPROVED', actedAt: '2026-04-11T10:00:00.000Z', comments: 'Approved for systems rollout retention package.' },
-  { id: 5, approvalRequestId: 3, approverSequenceId: 1, approverUserId: 4, status: 'APPROVED', actedAt: '2026-04-08T04:30:00.000Z', comments: 'Medical documents uploaded and verified.' },
-  { id: 6, approvalRequestId: 3, approverSequenceId: 3, approverUserId: 2, status: 'APPROVED', actedAt: '2026-04-09T08:00:00.000Z', comments: 'Leave approved.' },
-  { id: 7, approvalRequestId: 4, approverSequenceId: 1, approverUserId: 4, status: 'APPROVED', actedAt: '2026-04-03T05:00:00.000Z', comments: 'Exit clearance initiated.' },
-  { id: 8, approvalRequestId: 4, approverSequenceId: 2, approverUserId: 3, status: 'APPROVED', actedAt: '2026-04-03T11:00:00.000Z', comments: 'Separation endorsed based on resignation documents.' },
-  { id: 9, approvalRequestId: 4, approverSequenceId: 3, approverUserId: 2, status: 'APPROVED', actedAt: '2026-04-04T07:30:00.000Z', comments: 'Approved.' },
+  {
+    id: 1,
+    approvalRequestId: 1,
+    approverSequenceId: 1,
+    approverUserId: 4,
+    status: 'APPROVED',
+    actedAt: '2026-04-18T06:10:00.000Z',
+    comments: 'Onboarding and probation review complete.',
+  },
+  {
+    id: 2,
+    approvalRequestId: 1,
+    approverSequenceId: 2,
+    approverUserId: 3,
+    status: 'PENDING',
+  },
+  {
+    id: 3,
+    approvalRequestId: 2,
+    approverSequenceId: 4,
+    approverUserId: 5,
+    status: 'APPROVED',
+    actedAt: '2026-04-11T06:15:00.000Z',
+    comments: 'Compensation package aligned to imported template revision.',
+  },
+  {
+    id: 4,
+    approvalRequestId: 2,
+    approverSequenceId: 5,
+    approverUserId: 6,
+    status: 'APPROVED',
+    actedAt: '2026-04-11T10:00:00.000Z',
+    comments: 'Approved for systems rollout retention package.',
+  },
+  {
+    id: 5,
+    approvalRequestId: 3,
+    approverSequenceId: 1,
+    approverUserId: 4,
+    status: 'APPROVED',
+    actedAt: '2026-04-08T04:30:00.000Z',
+    comments: 'Medical documents uploaded and verified.',
+  },
+  {
+    id: 6,
+    approvalRequestId: 3,
+    approverSequenceId: 3,
+    approverUserId: 2,
+    status: 'APPROVED',
+    actedAt: '2026-04-09T08:00:00.000Z',
+    comments: 'Leave approved.',
+  },
+  {
+    id: 7,
+    approvalRequestId: 4,
+    approverSequenceId: 1,
+    approverUserId: 4,
+    status: 'APPROVED',
+    actedAt: '2026-04-03T05:00:00.000Z',
+    comments: 'Exit clearance initiated.',
+  },
+  {
+    id: 8,
+    approvalRequestId: 4,
+    approverSequenceId: 2,
+    approverUserId: 3,
+    status: 'APPROVED',
+    actedAt: '2026-04-03T11:00:00.000Z',
+    comments: 'Separation endorsed based on resignation documents.',
+  },
+  {
+    id: 9,
+    approvalRequestId: 4,
+    approverSequenceId: 3,
+    approverUserId: 2,
+    status: 'APPROVED',
+    actedAt: '2026-04-04T07:30:00.000Z',
+    comments: 'Approved.',
+  },
 ];
 
 const approvalWorkflowNotes = [
-  { id: 1, approvalWorkflowId: 1, authorUserId: 4, noteType: 'COMMENT', note: 'Regularization package and performance review attached.' },
-  { id: 2, approvalWorkflowId: 2, authorUserId: 3, noteType: 'SYSTEM', note: 'Awaiting VP HR review as of April 21, 2026.' },
-  { id: 3, approvalWorkflowId: 3, authorUserId: 5, noteType: 'SYSTEM', note: 'Imported pay-template mapping verified against position package.' },
-  { id: 4, approvalWorkflowId: 5, authorUserId: 4, noteType: 'COMMENT', note: 'Return-to-work expectations aligned with direct supervisor.' },
-  { id: 5, approvalWorkflowId: 7, authorUserId: 8, noteType: 'COMMENT', note: 'Company assets and access deprovisioning checklist opened.' },
-  { id: 6, approvalWorkflowId: 9, authorUserId: 2, noteType: 'SYSTEM', note: 'Separation approved and linked to offboarding record.' },
+  {
+    id: 1,
+    approvalWorkflowId: 1,
+    authorUserId: 4,
+    noteType: 'COMMENT',
+    note: 'Regularization package and performance review attached.',
+  },
+  {
+    id: 2,
+    approvalWorkflowId: 2,
+    authorUserId: 3,
+    noteType: 'SYSTEM',
+    note: 'Awaiting VP HR review as of April 21, 2026.',
+  },
+  {
+    id: 3,
+    approvalWorkflowId: 3,
+    authorUserId: 5,
+    noteType: 'SYSTEM',
+    note: 'Imported pay-template mapping verified against position package.',
+  },
+  {
+    id: 4,
+    approvalWorkflowId: 5,
+    authorUserId: 4,
+    noteType: 'COMMENT',
+    note: 'Return-to-work expectations aligned with direct supervisor.',
+  },
+  {
+    id: 5,
+    approvalWorkflowId: 7,
+    authorUserId: 8,
+    noteType: 'COMMENT',
+    note: 'Company assets and access deprovisioning checklist opened.',
+  },
+  {
+    id: 6,
+    approvalWorkflowId: 9,
+    authorUserId: 2,
+    noteType: 'SYSTEM',
+    note: 'Separation approved and linked to offboarding record.',
+  },
 ];
 
 const employeeLoaRecords = [
@@ -1640,40 +2512,54 @@ const employeeLoaRecords = [
     pauseAccruals: false,
     haltPayrollExpectations: false,
     pafRecordId: 3,
-    notes: 'Approved short medical leave seeded for Phase 1 approvals and personnel flows.',
+    notes:
+      'Approved short medical leave seeded for Phase 1 approvals and personnel flows.',
   },
 ];
 
-const employeeProfileHistory = transformedEmployees.slice(0, 18).map((employee, index) => ({
-  id: index + 1,
-  employeeId: employee.employeeId,
-  fieldName: ['civilStatus', 'residentialAddress', 'bankName'][index % 3],
-  previousValue:
-    index % 3 === 0
-      ? 'Single'
-      : index % 3 === 1
-        ? `${employee.city} Old Address`
-        : 'BPI',
-  newValue:
-    index % 3 === 0
-      ? 'Married'
-      : index % 3 === 1
-        ? employeeProfiles[index].residentialAddress
-        : employeeProfiles[index].bankName,
-  effectiveDate: toIsoDate(2025 + (index % 2), ((index + 2) % 12) + 1, ((index * 7) % 27) + 1),
-  changeSource: ['HR_UPDATE', 'EMPLOYEE_SELF_SERVICE', 'PAYROLL_UPDATE'][index % 3],
-  changeReason:
-    index % 3 === 0
-      ? 'Civil status update'
-      : index % 3 === 1
-        ? 'Residence relocation closer to assigned site'
-        : 'Payroll disbursement bank change',
-  changedAt: toIsoDate(2025 + (index % 2), ((index + 2) % 12) + 1, ((index * 7) % 27) + 1),
-  changedBy: [8, 4, 5][index % 3],
-}));
+const employeeProfileHistory = transformedEmployees
+  .slice(0, 18)
+  .map((employee, index) => ({
+    id: index + 1,
+    employeeId: employee.employeeId,
+    fieldName: ['civilStatus', 'residentialAddress', 'bankName'][index % 3],
+    previousValue:
+      index % 3 === 0
+        ? 'Single'
+        : index % 3 === 1
+          ? `${employee.city} Old Address`
+          : 'BPI',
+    newValue:
+      index % 3 === 0
+        ? 'Married'
+        : index % 3 === 1
+          ? employeeProfiles[index].residentialAddress
+          : employeeProfiles[index].bankName,
+    effectiveDate: toIsoDate(
+      2025 + (index % 2),
+      ((index + 2) % 12) + 1,
+      ((index * 7) % 27) + 1,
+    ),
+    changeSource: ['HR_UPDATE', 'EMPLOYEE_SELF_SERVICE', 'PAYROLL_UPDATE'][
+      index % 3
+    ],
+    changeReason:
+      index % 3 === 0
+        ? 'Civil status update'
+        : index % 3 === 1
+          ? 'Residence relocation closer to assigned site'
+          : 'Payroll disbursement bank change',
+    changedAt: toIsoDate(
+      2025 + (index % 2),
+      ((index + 2) % 12) + 1,
+      ((index * 7) % 27) + 1,
+    ),
+    changedBy: [8, 4, 5][index % 3],
+  }));
 
 export const seedData = {
   users,
+  userCredentials,
   roles,
   permissions,
   systemModules,
@@ -1685,6 +2571,7 @@ export const seedData = {
   rolePermissionAssignments,
   userSessions,
   userAuthTokens,
+  auditEvents,
   hierarchyLevels,
   sites: siteCatalog,
   orgUnits,

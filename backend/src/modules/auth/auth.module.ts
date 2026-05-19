@@ -15,6 +15,9 @@ import { AuthService } from './auth.service';
       global: true,
       imports: [ConfigModule],
       inject: [ConfigService],
+      /**
+       * Connects ConfigModule values to JwtModule so AuthService and JwtAuthGuard share the same signing settings.
+       */
       useFactory: (configService: ConfigService<EnvironmentConfiguration>) => ({
         secret: configService.getOrThrow(JWT_SECRET_CONFIG_KEY),
         signOptions: {
