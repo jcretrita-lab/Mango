@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   MethodNotAllowedException,
@@ -73,6 +74,35 @@ function normalizeFilterField(
   field: string | ReadFilterFieldDefinition,
 ): ReadFilterFieldDefinition {
   return typeof field === 'string' ? { query: field, field } : field;
+}
+
+function parseFilterValue(
+  definition: ReadFilterFieldDefinition,
+  value: string,
+): unknown {
+  switch (definition.type) {
+    case 'boolean':
+      if (['true', '1', 'yes', 'active'].includes(value.toLowerCase())) {
+        return true;
+      }
+      if (
+        ['false', '0', 'no', 'inactive', 'deactivated'].includes(
+          value.toLowerCase(),
+        )
+      ) {
+        return false;
+      }
+      throw new BadRequestException(
+        `${definition.query} must be a boolean-like value.`,
+      );
+    case 'number':
+      if (!Number.isFinite(Number(value))) {
+        throw new BadRequestException(`${definition.query} must be a number.`);
+      }
+      return Number(value);
+    default:
+      return value;
+  }
 }
 
 @Injectable()
@@ -246,8 +276,11 @@ export class ReadResourceService {
       entries.map(([definition, value]) => [
         definition.field,
         definition.jsonPath?.length
-          ? { path: [...definition.jsonPath], equals: value }
-          : value,
+          ? {
+              path: [...definition.jsonPath],
+              equals: parseFilterValue(definition, value),
+            }
+          : parseFilterValue(definition, value),
       ]),
     );
   }

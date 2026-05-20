@@ -65,6 +65,18 @@ export class PayStructureReadController {
   }
 
   @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_READ)
+  @Get('salary-grades/:id/steps')
+  findSalaryGradeStepsByGrade(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.findSalaryGradeStepsByGrade(
+      id,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_READ)
   @Get('salary-grades/:id')
   findSalaryGrade(
     @Param('id', ParseIntPipe) id: number,
@@ -107,6 +119,18 @@ export class PayStructureReadController {
     @Req() request: PayStructureReadRequest,
   ) {
     return this.findOne('earningTemplateFamilies', id, request);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_READ)
+  @Get('earning-template-families/:id/current-revision')
+  findCurrentEarningTemplateRevision(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.findCurrentEarningTemplateRevision(
+      id,
+      request.user,
+    );
   }
 
   @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_READ)
@@ -181,6 +205,20 @@ export class PayStructureReadController {
     return this.findOne('earningComponents', id, request);
   }
 
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Post('earning-components/:id/resolve')
+  resolveEarningComponent(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.resolveEarningComponent(
+      id,
+      body,
+      request.user,
+    );
+  }
+
   @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_READ)
   @Get('formulas')
   findFormulas(
@@ -188,6 +226,20 @@ export class PayStructureReadController {
     @Query() query: ApiQuery,
   ) {
     return this.findAll('formulas', request, query);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_READ)
+  @Get('formulas/:id/as-of')
+  findFormulaAsOf(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('date') date: string | undefined,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.findFormulaAsOf(
+      id,
+      date,
+      request.user,
+    );
   }
 
   @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_READ)
@@ -215,6 +267,23 @@ export class PayStructureReadController {
     @Req() request: PayStructureReadRequest,
   ) {
     return this.findOne('formulaVersions', id, request);
+  }
+
+  @RequirePermissions(
+    PERMISSION_CODES.PAY_STRUCTURE_READ,
+    PERMISSION_CODES.PAY_STRUCTURE_SELF_READ,
+  )
+  @Get('employees/:employeeId/pay-profile/current')
+  findCurrentEmployeePayProfile(
+    @Param('employeeId', ParseIntPipe) employeeId: number,
+    @Query('date') date: string | undefined,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.findCurrentEmployeePayProfile(
+      employeeId,
+      date,
+      request.user,
+    );
   }
 
   @RequirePermissions(
@@ -268,6 +337,29 @@ export class PayStructureReadController {
   }
 
   @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Patch('salary-grades/:id/status')
+  updateSalaryGradeStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.updateSalaryGradeStatus(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Delete('salary-grades/:id')
+  deleteSalaryGrade(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.deleteSalaryGrade(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
   @Post('salary-grade-steps')
   createSalaryGradeStep(
     @Body() body: WriteBody,
@@ -289,6 +381,18 @@ export class PayStructureReadController {
     return this.employeePayProfilesService.updateSalaryGradeStep(
       id,
       body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Delete('salary-grade-steps/:id')
+  deleteSalaryGradeStep(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.deleteSalaryGradeStep(
+      id,
       request.user,
     );
   }
@@ -317,6 +421,20 @@ export class PayStructureReadController {
   }
 
   @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Patch('formulas/:id/status')
+  updateFormulaStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.updateFormulaStatus(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
   @Post('formula-versions')
   createFormulaVersion(
     @Body() body: WriteBody,
@@ -324,6 +442,18 @@ export class PayStructureReadController {
   ) {
     return this.employeePayProfilesService.createFormulaVersion(
       body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Post('formula-versions/:id/set-current')
+  setCurrentFormulaVersion(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.setCurrentFormulaVersion(
+      id,
       request.user,
     );
   }
@@ -355,6 +485,20 @@ export class PayStructureReadController {
   }
 
   @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Patch('earning-components/:id/status')
+  updateEarningComponentStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.updateEarningComponentStatus(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
   @Post('earning-template-families')
   createEarningTemplateFamily(
     @Body() body: WriteBody,
@@ -362,6 +506,86 @@ export class PayStructureReadController {
   ) {
     return this.employeePayProfilesService.createEarningTemplateFamily(
       body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Patch('earning-template-families/:id')
+  updateEarningTemplateFamily(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.updateEarningTemplateFamily(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Patch('earning-template-families/:id/status')
+  updateEarningTemplateFamilyStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.updateEarningTemplateFamilyStatus(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Post('earning-template-families/:id/variants')
+  createEarningTemplateFamilyVariant(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.createEarningTemplateFamilyVariant(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Post('earning-template-family-scopes')
+  createEarningTemplateFamilyScope(
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.createEarningTemplateFamilyScope(
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Patch('earning-template-family-scopes/:id')
+  updateEarningTemplateFamilyScope(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.updateEarningTemplateFamilyScope(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Post('earning-template-family-scopes/:id/set-primary')
+  setPrimaryEarningTemplateFamilyScope(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.setPrimaryEarningTemplateFamilyScope(
+      id,
       request.user,
     );
   }
@@ -379,6 +603,32 @@ export class PayStructureReadController {
   }
 
   @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Post('earning-template-revisions/:id/set-current')
+  setCurrentEarningTemplateRevision(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.setCurrentEarningTemplateRevision(
+      id,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Post('earning-template-revisions/:id/reorder-lines')
+  reorderEarningTemplateRevisionLines(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.reorderEarningTemplateRevisionLines(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
   @Post('earning-template-revision-lines')
   createEarningTemplateRevisionLine(
     @Body() body: WriteBody,
@@ -386,6 +636,32 @@ export class PayStructureReadController {
   ) {
     return this.employeePayProfilesService.createEarningTemplateRevisionLine(
       body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Patch('earning-template-revision-lines/:id')
+  updateEarningTemplateRevisionLine(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.updateEarningTemplateRevisionLine(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Delete('earning-template-revision-lines/:id')
+  deleteEarningTemplateRevisionLine(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: PayStructureReadRequest,
+  ) {
+    return this.employeePayProfilesService.deleteEarningTemplateRevisionLine(
+      id,
       request.user,
     );
   }

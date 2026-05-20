@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { normalizeRecordPayload } from '../src/common/payload/normalize-payload';
 import type { ReadModelName } from '../src/common/api/read-resource.types';
 import { PHASE1_HR_STATUS_VALUES } from '../src/common/constants/domain-status.constants';

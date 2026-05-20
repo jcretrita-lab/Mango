@@ -344,49 +344,217 @@ Expected:
 
 ## 10. Org Structure APIs
 
-Use Superadmin.
+Use Superadmin for every admin/write test in this section.
 
-### Read APIs
+Important test habit: list a resource first, copy a real `id`, then use that `id` in write/update/delete tests. The examples use seeded IDs where possible, but your local database may differ after repeated testing.
 
-```http
-GET /api/org-structure/company-profiles
-GET /api/org-structure/company-profiles/:id
-GET /api/org-structure/hierarchy-levels
-GET /api/org-structure/hierarchy-levels/:id
-GET /api/org-structure/org-units
-GET /api/org-structure/org-units/:id
-GET /api/org-structure/org-unit-closures
-GET /api/org-structure/org-unit-closures/:id
-GET /api/org-structure/org-unit-versions
-GET /api/org-structure/org-unit-versions/:id
-GET /api/org-structure/sites
-GET /api/org-structure/sites/:id
-GET /api/org-structure/ranks
-GET /api/org-structure/ranks/:id
-GET /api/org-structure/rank-levels
-GET /api/org-structure/rank-levels/:id
-GET /api/org-structure/position-templates
-GET /api/org-structure/position-templates/:id
-GET /api/org-structure/position-profiles
-GET /api/org-structure/position-profiles/:id
-GET /api/org-structure/position-sub-levels
-GET /api/org-structure/position-sub-levels/:id
-GET /api/org-structure/positions
-GET /api/org-structure/positions/:id
-GET /api/org-structure/position-assignments
-GET /api/org-structure/position-assignments/:id
-```
+### 10.1 Shared Org Structure Read Tests
 
-Example:
+All list APIs support `page` and `limit`. Many also support `search` and resource-specific filters such as `active=true`, `orgUnitId=1`, `employeeId=1`, or `positionProfileId=1`.
 
 ```http
-GET http://localhost:3000/api/org-structure/org-units?page=1&limit=10
+GET http://localhost:3000/api/org-structure/org-units?page=1&limit=10&search=finance&active=true
 Authorization: Bearer SUPERADMIN_TOKEN
 ```
 
-### Write APIs Added
+Expected:
 
-Create hierarchy level:
+- HTTP `200`
+- response has `data`, `total`, `page`, `limit`
+- invalid typed filters, such as `active=maybe`, return `400`
+
+### 10.2 Complete Org Structure Endpoint Checklist
+
+```http
+GET    /api/org-structure/company-profiles
+GET    /api/org-structure/company-profiles/:id
+POST   /api/org-structure/company-profiles
+PATCH  /api/org-structure/company-profiles/:id
+PATCH  /api/org-structure/company-profiles/:id/status
+
+GET    /api/org-structure/hierarchy-levels
+GET    /api/org-structure/hierarchy-levels/:id
+POST   /api/org-structure/hierarchy-levels
+PATCH  /api/org-structure/hierarchy-levels/:id
+DELETE /api/org-structure/hierarchy-levels/:id
+
+GET    /api/org-structure/sites
+GET    /api/org-structure/sites/:id
+POST   /api/org-structure/sites
+PATCH  /api/org-structure/sites/:id
+PATCH  /api/org-structure/sites/:id/status
+
+GET    /api/org-structure/org-units
+GET    /api/org-structure/org-units/:id
+POST   /api/org-structure/org-units
+PATCH  /api/org-structure/org-units/:id
+PATCH  /api/org-structure/org-units/:id/status
+PATCH  /api/org-structure/org-units/:id/head-position
+POST   /api/org-structure/org-units/:id/move
+DELETE /api/org-structure/org-units/:id
+GET    /api/org-structure/org-units/:id/children
+GET    /api/org-structure/org-units/:id/ancestors
+GET    /api/org-structure/org-units/:id/descendants
+GET    /api/org-structure/org-units/as-of?date=YYYY-MM-DD
+POST   /api/org-structure/org-units/:id/rebuild-closure
+
+GET    /api/org-structure/org-unit-closures
+GET    /api/org-structure/org-unit-closures/:id
+
+GET    /api/org-structure/org-unit-versions
+GET    /api/org-structure/org-unit-versions/:id
+POST   /api/org-structure/org-unit-versions
+
+GET    /api/org-structure/ranks
+GET    /api/org-structure/ranks/:id
+POST   /api/org-structure/ranks
+PATCH  /api/org-structure/ranks/:id
+DELETE /api/org-structure/ranks/:id
+
+GET    /api/org-structure/rank-levels
+GET    /api/org-structure/rank-levels/:id
+POST   /api/org-structure/rank-levels
+PATCH  /api/org-structure/rank-levels/:id
+DELETE /api/org-structure/rank-levels/:id
+
+GET    /api/org-structure/position-templates
+GET    /api/org-structure/position-templates/:id
+POST   /api/org-structure/position-templates
+PATCH  /api/org-structure/position-templates/:id
+DELETE /api/org-structure/position-templates/:id
+
+GET    /api/org-structure/position-profiles
+GET    /api/org-structure/position-profiles/:id
+POST   /api/org-structure/position-profiles
+PATCH  /api/org-structure/position-profiles/:id
+DELETE /api/org-structure/position-profiles/:id
+
+GET    /api/org-structure/position-sub-levels
+GET    /api/org-structure/position-sub-levels/:id
+POST   /api/org-structure/position-sub-levels
+PATCH  /api/org-structure/position-sub-levels/:id
+DELETE /api/org-structure/position-sub-levels/:id
+
+GET    /api/org-structure/positions
+GET    /api/org-structure/positions/:id
+GET    /api/org-structure/positions/headcount-summary
+POST   /api/org-structure/positions
+PATCH  /api/org-structure/positions/:id
+PATCH  /api/org-structure/positions/:id/supervisor
+DELETE /api/org-structure/positions/:id
+
+GET    /api/org-structure/position-assignments
+GET    /api/org-structure/position-assignments/:id
+POST   /api/org-structure/position-assignments
+PATCH  /api/org-structure/position-assignments/:id
+POST   /api/org-structure/position-assignments/:id/end
+
+GET    /api/system-settings/rank-terminology
+PATCH  /api/system-settings/rank-terminology
+```
+
+Org-structure UI also depends on these pay-structure APIs:
+
+```http
+GET    /api/pay-structure/salary-grades
+GET    /api/pay-structure/salary-grades/:id
+POST   /api/pay-structure/salary-grades
+PATCH  /api/pay-structure/salary-grades/:id
+DELETE /api/pay-structure/salary-grades/:id
+
+GET    /api/pay-structure/salary-grade-steps
+GET    /api/pay-structure/salary-grade-steps/:id
+POST   /api/pay-structure/salary-grade-steps
+PATCH  /api/pay-structure/salary-grade-steps/:id
+DELETE /api/pay-structure/salary-grade-steps/:id
+```
+
+For every `GET .../:id` endpoint in the checklist, first call the matching list endpoint, copy an existing `id`, then call the single-record endpoint. Example:
+
+```http
+GET http://localhost:3000/api/org-structure/positions/1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected:
+
+- existing ID returns HTTP `200` and one object
+- missing ID returns `404`
+
+### 10.3 Company Profile Tests
+
+List and get:
+
+```http
+GET http://localhost:3000/api/org-structure/company-profiles?search=Diwa
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+```http
+GET http://localhost:3000/api/org-structure/company-profiles/1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create:
+
+```http
+POST http://localhost:3000/api/org-structure/company-profiles
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "registeredName": "API Test Company Inc.",
+  "displayName": "API Test Company",
+  "registrationType": "DOMESTIC_CORPORATION",
+  "registrationNo": "API-REG-001",
+  "tin": "999-999-999-000",
+  "businessAddress": "API Test Address",
+  "countryCode": "PH",
+  "status": "ACTIVE"
+}
+```
+
+Update:
+
+```http
+PATCH http://localhost:3000/api/org-structure/company-profiles/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "displayName": "Updated API Company",
+  "rdoCode": "044"
+}
+```
+
+Deactivate/reactivate:
+
+```http
+PATCH http://localhost:3000/api/org-structure/company-profiles/1/status
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "status": "INACTIVE"
+}
+```
+
+Expected:
+
+- create requires legal/statutory fields
+- status update changes only `status`
+- invalid/missing required fields return `400`
+
+### 10.4 Hierarchy Level Tests
+
+List/get:
+
+```http
+GET http://localhost:3000/api/org-structure/hierarchy-levels?levelNo=1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create:
 
 ```http
 POST http://localhost:3000/api/org-structure/hierarchy-levels
@@ -400,7 +568,7 @@ Content-Type: application/json
 }
 ```
 
-Update hierarchy level:
+Update:
 
 ```http
 PATCH http://localhost:3000/api/org-structure/hierarchy-levels/99
@@ -412,7 +580,28 @@ Content-Type: application/json
 }
 ```
 
-Create site:
+Delete:
+
+```http
+DELETE http://localhost:3000/api/org-structure/hierarchy-levels/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected:
+
+- delete succeeds only when no org units or org unit versions use the level
+- deleting a referenced level returns `400`
+
+### 10.5 Site Tests
+
+List/get:
+
+```http
+GET http://localhost:3000/api/org-structure/sites?search=Manila&active=true
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create:
 
 ```http
 POST http://localhost:3000/api/org-structure/sites
@@ -424,11 +613,13 @@ Content-Type: application/json
   "name": "API Test Site",
   "city": "Quezon City",
   "region": "NCR",
-  "countryCode": "PH"
+  "countryCode": "PH",
+  "isActive": true,
+  "sortOrder": 99
 }
 ```
 
-Update site:
+Update:
 
 ```http
 PATCH http://localhost:3000/api/org-structure/sites/1
@@ -440,7 +631,34 @@ Content-Type: application/json
 }
 ```
 
-Create org unit:
+Deactivate/reactivate:
+
+```http
+PATCH http://localhost:3000/api/org-structure/sites/1/status
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+```
+
+Expected:
+
+- create requires `code` and `name`
+- `active=true` and `active=false` filters work
+- invalid status values return `400`
+
+### 10.6 Org Unit Tree Tests
+
+List/get:
+
+```http
+GET http://localhost:3000/api/org-structure/org-units?search=Finance&active=true
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create:
 
 ```http
 POST http://localhost:3000/api/org-structure/org-units
@@ -451,11 +669,36 @@ Content-Type: application/json
   "parentOrgUnitId": 1,
   "hierarchyLevelId": 1,
   "code": "API-UNIT",
-  "name": "API Test Unit"
+  "name": "API Test Unit",
+  "isActive": true
 }
 ```
 
-Move org unit:
+Update:
+
+```http
+PATCH http://localhost:3000/api/org-structure/org-units/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "name": "Updated Org Unit Name"
+}
+```
+
+Deactivate/reactivate:
+
+```http
+PATCH http://localhost:3000/api/org-structure/org-units/1/status
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "status": "inactive"
+}
+```
+
+Move:
 
 ```http
 POST http://localhost:3000/api/org-structure/org-units/2/move
@@ -467,7 +710,106 @@ Content-Type: application/json
 }
 ```
 
-Create rank:
+Children/ancestors/descendants:
+
+```http
+GET http://localhost:3000/api/org-structure/org-units/1/children
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+```http
+GET http://localhost:3000/api/org-structure/org-units/2/ancestors
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+```http
+GET http://localhost:3000/api/org-structure/org-units/1/descendants
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Rebuild closure:
+
+```http
+POST http://localhost:3000/api/org-structure/org-units/1/rebuild-closure
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Delete org unit and child units:
+
+```http
+DELETE http://localhost:3000/api/org-structure/org-units/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected:
+
+- create creates closure rows automatically
+- move prevents moving a unit under itself or under its descendant
+- rebuild returns rebuilt org unit IDs and closure row count
+- delete succeeds only when the subtree has no positions and is not used as a company root
+
+### 10.7 Org Unit Closure And Version Tests
+
+Closure list/get:
+
+```http
+GET http://localhost:3000/api/org-structure/org-unit-closures?ancestorOrgUnitId=1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+```http
+GET http://localhost:3000/api/org-structure/org-unit-closures/1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Version list/get:
+
+```http
+GET http://localhost:3000/api/org-structure/org-unit-versions?orgUnitId=1&current=true
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create version:
+
+```http
+POST http://localhost:3000/api/org-structure/org-unit-versions
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "orgUnitId": 1,
+  "parentOrgUnitId": null,
+  "hierarchyLevelId": 1,
+  "name": "API Versioned Org Unit",
+  "effectiveStartDate": "2026-06-01T00:00:00.000Z",
+  "isCurrent": true,
+  "changeReason": "API testing"
+}
+```
+
+Point-in-time chart:
+
+```http
+GET http://localhost:3000/api/org-structure/org-units/as-of?date=2026-06-01
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected:
+
+- creating a current version marks previous current versions for the same org unit as not current
+- as-of response returns versions effective on the requested date
+- end date before start date returns `400`
+
+### 10.8 Rank And Rank Level Tests
+
+List/get ranks:
+
+```http
+GET http://localhost:3000/api/org-structure/ranks?search=Manager&mode=STANDARD
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create/update/delete rank:
 
 ```http
 POST http://localhost:3000/api/org-structure/ranks
@@ -477,11 +819,32 @@ Content-Type: application/json
 {
   "name": "API Test Rank",
   "sortOrder": 99,
+  "color": "#2563eb",
   "mode": "STANDARD"
 }
 ```
 
-Create rank level:
+```http
+PATCH http://localhost:3000/api/org-structure/ranks/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "color": "#16a34a"
+}
+```
+
+```http
+DELETE http://localhost:3000/api/org-structure/ranks/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+List/create/update/delete rank level:
+
+```http
+GET http://localhost:3000/api/org-structure/rank-levels?rankId=1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
 
 ```http
 POST http://localhost:3000/api/org-structure/rank-levels
@@ -495,7 +858,34 @@ Content-Type: application/json
 }
 ```
 
-Create position template:
+```http
+PATCH http://localhost:3000/api/org-structure/rank-levels/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "code": "API-L1-UPD"
+}
+```
+
+```http
+DELETE http://localhost:3000/api/org-structure/rank-levels/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected:
+
+- rank delete fails while rank levels or position profiles use it
+- rank level delete fails while position profiles use it
+
+### 10.9 Position Template, Profile, And Sub-Level Tests
+
+Position template:
+
+```http
+GET http://localhost:3000/api/org-structure/position-templates?search=Teacher&family=Academic
+Authorization: Bearer SUPERADMIN_TOKEN
+```
 
 ```http
 POST http://localhost:3000/api/org-structure/position-templates
@@ -505,11 +895,32 @@ Content-Type: application/json
 {
   "name": "API Test Position Template",
   "family": "Operations",
-  "category": "Staff"
+  "category": "Staff",
+  "description": "Created during API testing"
 }
 ```
 
-Create position profile:
+```http
+PATCH http://localhost:3000/api/org-structure/position-templates/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "category": "Leadership"
+}
+```
+
+```http
+DELETE http://localhost:3000/api/org-structure/position-templates/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Position profile:
+
+```http
+GET http://localhost:3000/api/org-structure/position-profiles?positionTemplateId=1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
 
 ```http
 POST http://localhost:3000/api/org-structure/position-profiles
@@ -519,11 +930,79 @@ Content-Type: application/json
 {
   "positionTemplateId": 1,
   "label": "API Test Position Profile",
-  "progressionMode": "STANDARD"
+  "rankId": 1,
+  "rankLevelId": 1,
+  "progressionMode": "STANDARD",
+  "defaultSalaryGradeId": 1
 }
 ```
 
-Create position:
+```http
+PATCH http://localhost:3000/api/org-structure/position-profiles/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "progressionMode": "STEP"
+}
+```
+
+```http
+DELETE http://localhost:3000/api/org-structure/position-profiles/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Position sub-level:
+
+```http
+GET http://localhost:3000/api/org-structure/position-sub-levels?positionProfileId=1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+```http
+POST http://localhost:3000/api/org-structure/position-sub-levels
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "positionProfileId": 1,
+  "name": "API Step 1",
+  "sortOrder": 99,
+  "salaryGradeId": 1
+}
+```
+
+```http
+PATCH http://localhost:3000/api/org-structure/position-sub-levels/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "name": "Updated API Step"
+}
+```
+
+```http
+DELETE http://localhost:3000/api/org-structure/position-sub-levels/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected:
+
+- template/profile/sub-level deletes fail if child or position records use them
+- profile can point to rank, rank level, and default salary grade
+- sub-level can point to salary grade
+
+### 10.10 Position Tests
+
+List/get:
+
+```http
+GET http://localhost:3000/api/org-structure/positions?orgUnitId=1&search=Manager
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create:
 
 ```http
 POST http://localhost:3000/api/org-structure/positions
@@ -533,14 +1012,102 @@ Content-Type: application/json
 {
   "orgUnitId": 1,
   "positionProfileId": 1,
+  "positionSubLevelId": 1,
+  "salaryGradeId": 1,
+  "salaryGradeStepId": 1,
   "title": "API Test Position",
   "employmentStatus": "ACTIVE",
   "defaultBasePay": 30000,
+  "plannedHeadcount": 1,
   "fte": 1
 }
 ```
 
-Create position assignment:
+Edit or move to another org unit:
+
+```http
+PATCH http://localhost:3000/api/org-structure/positions/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "orgUnitId": 2,
+  "title": "Updated API Position"
+}
+```
+
+Set supervisor:
+
+```http
+PATCH http://localhost:3000/api/org-structure/positions/2/supervisor
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "supervisorPositionId": 1
+}
+```
+
+Clear supervisor:
+
+```http
+PATCH http://localhost:3000/api/org-structure/positions/2/supervisor
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "supervisorPositionId": null
+}
+```
+
+Assign unit head:
+
+```http
+PATCH http://localhost:3000/api/org-structure/org-units/1/head-position
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "headPositionId": 1
+}
+```
+
+Headcount/vacancy summary:
+
+```http
+GET http://localhost:3000/api/org-structure/positions/headcount-summary?orgUnitId=1&date=2026-01-01
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Delete:
+
+```http
+DELETE http://localhost:3000/api/org-structure/positions/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected:
+
+- supervisor cannot be the same position
+- supervisor update rejects reporting cycles
+- unit head position must belong to the org unit it heads
+- delete fails if assignments, subordinate positions, unit-head links, or approval rules still reference the position
+
+### 10.11 Position Assignment Tests
+
+List/get:
+
+```http
+GET http://localhost:3000/api/org-structure/position-assignments?employeeId=1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+```http
+GET http://localhost:3000/api/org-structure/position-assignments?positionId=1&assignmentType=PRIMARY
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create:
 
 ```http
 POST http://localhost:3000/api/org-structure/position-assignments
@@ -556,7 +1123,21 @@ Content-Type: application/json
 }
 ```
 
-End position assignment:
+Update with optimistic version:
+
+```http
+PATCH http://localhost:3000/api/org-structure/position-assignments/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "version": 1,
+  "assignmentType": "CONCURRENT",
+  "fte": 0.5
+}
+```
+
+End assignment:
 
 ```http
 POST http://localhost:3000/api/org-structure/position-assignments/1/end
@@ -567,6 +1148,167 @@ Content-Type: application/json
   "endDate": "2026-12-31T00:00:00.000Z"
 }
 ```
+
+Expected:
+
+- overlapping assignment FTE cannot exceed position capacity
+- stale `version` returns `409 Conflict`
+- end date before start date returns `400`
+
+### 10.12 Salary Grade APIs Used By Org Structure
+
+Create/update/delete salary grade:
+
+```http
+POST http://localhost:3000/api/pay-structure/salary-grades
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "code": "API-SG",
+  "name": "API Salary Grade",
+  "rateType": "MONTHLY",
+  "minSalary": 30000,
+  "maxSalary": 60000,
+  "currency": "PHP",
+  "status": "ACTIVE"
+}
+```
+
+```http
+PATCH http://localhost:3000/api/pay-structure/salary-grades/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "maxSalary": 65000
+}
+```
+
+```http
+DELETE http://localhost:3000/api/pay-structure/salary-grades/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create/update/delete salary grade step:
+
+```http
+POST http://localhost:3000/api/pay-structure/salary-grade-steps
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "salaryGradeId": 1,
+  "stepNumber": 99,
+  "name": "API Step",
+  "amount": 35000
+}
+```
+
+```http
+PATCH http://localhost:3000/api/pay-structure/salary-grade-steps/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "amount": 36000
+}
+```
+
+```http
+DELETE http://localhost:3000/api/pay-structure/salary-grade-steps/99
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected:
+
+- deleting a salary grade with references deactivates it instead of breaking linked org records
+- deleting a salary grade step fails while positions use it
+
+### 10.13 Rank Terminology Setting
+
+Read:
+
+```http
+GET http://localhost:3000/api/system-settings/rank-terminology
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Update:
+
+```http
+PATCH http://localhost:3000/api/system-settings/rank-terminology
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "rankLabel": "Job Band",
+  "rankLevelLabel": "Band Level",
+  "positionSubLevelLabel": "Step"
+}
+```
+
+Expected:
+
+- read returns defaults when no setting exists
+- update stores labels in `SystemSetting`
+- non-string labels return `400`
+
+### 10.14 Org Structure Negative Tests
+
+Missing permission:
+
+```http
+POST http://localhost:3000/api/org-structure/ranks
+Authorization: Bearer EMPLOYEE_TOKEN
+Content-Type: application/json
+
+{
+  "name": "Should Fail",
+  "sortOrder": 1000,
+  "mode": "STANDARD"
+}
+```
+
+Expected: `403 Forbidden`.
+
+Missing token:
+
+```http
+GET http://localhost:3000/api/org-structure/org-units
+```
+
+Expected: `401 Unauthorized`.
+
+Bad move:
+
+```http
+POST http://localhost:3000/api/org-structure/org-units/1/move
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "parentOrgUnitId": 1
+}
+```
+
+Expected: `400 Bad Request`.
+
+Blocked generic mutation:
+
+```http
+POST http://localhost:3000/api/org-structure/org-unit-closures
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "ancestorOrgUnitId": 1,
+  "descendantOrgUnitId": 1,
+  "depth": 0
+}
+```
+
+Expected: `405 Method Not Allowed`.
 
 ---
 
@@ -615,6 +1357,8 @@ GET /api/personnel/employee-loa-records
 GET /api/personnel/employee-loa-records/:id
 GET /api/personnel/paf-records
 GET /api/personnel/paf-records/:id
+GET /api/employees/:employeeId/paf-records
+GET /api/me/paf-records
 GET /api/personnel/employee-profile-histories
 GET /api/personnel/employee-profile-histories/:id
 ```
@@ -799,6 +1543,291 @@ PATCH /api/personnel/employees/reference-contacts/:recordId
 PATCH /api/personnel/employees/pis-fields/:fieldId
 ```
 
+### PAF APIs
+
+Use Superadmin for manage actions. Use Employee Self Service only for `/api/me/paf-records` and employee-scoped read checks.
+
+Endpoint checklist:
+
+```http
+POST   /api/personnel/paf-records
+GET    /api/personnel/paf-records
+GET    /api/personnel/paf-records/:id
+PATCH  /api/personnel/paf-records/:id
+DELETE /api/personnel/paf-records/:id
+
+GET    /api/employees/:employeeId/paf-records
+GET    /api/me/paf-records
+GET    /api/personnel/paf-records?employeeId=&actionType=&status=&effectiveFrom=&effectiveTo=
+
+POST   /api/personnel/paf-records/:id/submit
+POST   /api/personnel/paf-records/:id/cancel
+POST   /api/approvals/approval-requests/:id/actions
+POST   /api/personnel/paf-records/:id/verify
+POST   /api/personnel/paf-records/:id/apply
+
+PATCH  /api/personnel/paf-records/:id/approval-setup
+POST   /api/personnel/paf-records/:id/approval-request
+GET    /api/personnel/paf-records/:id/approval-trail
+
+GET    /api/personnel/paf-records/:id/payload
+PATCH  /api/personnel/paf-records/:id/payload
+POST   /api/personnel/paf-records/validate
+
+GET    /api/personnel/paf-records/:id/profile-histories
+GET    /api/personnel/paf-records/:id/loa-records
+POST   /api/personnel/paf-records/:id/profile-history
+POST   /api/personnel/paf-records/:id/loa-record
+
+GET    /api/personnel/paf-records/:id/print
+GET    /api/personnel/paf-records/:id/pdf
+```
+
+Create a draft PAF:
+
+```http
+POST http://localhost:3000/api/personnel/paf-records
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "employeeId": 1,
+  "approvalSetupId": 1,
+  "actionType": "Department Transfer",
+  "effectiveDate": "2027-06-01T00:00:00.000Z",
+  "payloadJson": {
+    "fromOrgUnitId": 1,
+    "toOrgUnitId": 2,
+    "proposedPositionId": 1,
+    "reason": "Move to operations support"
+  },
+  "status": "DRAFT"
+}
+```
+
+Expected: `201`, status `DRAFT`, projected PAF record, and audit event `PAF_RECORD_CREATED`.
+
+List, search, date-filter, get, and employee-scope reads:
+
+```http
+GET http://localhost:3000/api/personnel/paf-records?search=Transfer&employeeId=1&actionType=Department%20Transfer&status=DRAFT&effectiveFrom=2027-01-01&effectiveTo=2027-12-31
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/personnel/paf-records/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/employees/1/paf-records
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/me/paf-records
+Authorization: Bearer EMPLOYEE_SELF_SERVICE_TOKEN
+```
+
+Expected: employee self-service returns only the signed-in employee's PAF records; asking for another employee through `/api/employees/:employeeId/paf-records` returns `403`.
+
+Validate and update payload:
+
+```http
+POST http://localhost:3000/api/personnel/paf-records/validate
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "actionType": "Department Transfer",
+  "payloadJson": {
+    "toOrgUnitId": 2,
+    "reason": "Move to operations support"
+  }
+}
+```
+
+```http
+GET http://localhost:3000/api/personnel/paf-records/1/payload
+Authorization: Bearer SUPERADMIN_TOKEN
+
+PATCH http://localhost:3000/api/personnel/paf-records/1/payload
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "payloadJson": {
+    "fromOrgUnitId": 1,
+    "toOrgUnitId": 3,
+    "proposedSupervisorPositionId": 5,
+    "remarks": "Updated during API testing"
+  }
+}
+```
+
+Expected: validation returns `valid: true` for known action types with required payload fields. Payload updates are blocked after the PAF is applied or cancelled.
+
+Update normal PAF fields:
+
+```http
+PATCH http://localhost:3000/api/personnel/paf-records/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "effectiveDate": "2027-06-15T00:00:00.000Z",
+  "payloadJson": {
+    "fromOrgUnitId": 1,
+    "toOrgUnitId": 3,
+    "reason": "Updated department target"
+  }
+}
+```
+
+Link or create approval request:
+
+```http
+PATCH http://localhost:3000/api/personnel/paf-records/1/approval-setup
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "approvalSetupId": 1
+}
+
+POST http://localhost:3000/api/personnel/paf-records/1/approval-request
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "approvalSetupId": 1
+}
+```
+
+Expected: the approval request uses `referenceType: "PAF_RECORD"` and `referenceId` equal to the PAF ID.
+
+Submit, approve/reject, verify, and apply:
+
+```http
+POST http://localhost:3000/api/personnel/paf-records/1/submit
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/personnel/paf-records/1/approval-trail
+Authorization: Bearer SUPERADMIN_TOKEN
+
+POST http://localhost:3000/api/approvals/approval-requests/1/actions
+Authorization: Bearer APPROVER_TOKEN
+Content-Type: application/json
+
+{
+  "action": "approve",
+  "comments": "Approved during API testing"
+}
+
+POST http://localhost:3000/api/personnel/paf-records/1/verify
+Authorization: Bearer SUPERADMIN_TOKEN
+
+POST http://localhost:3000/api/personnel/paf-records/1/apply
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: submit creates or submits the linked approval request and sets PAF status to `PENDING_APPROVAL`; approval actions advance the approval workflow; verify sets status `VERIFIED`; apply sets status `APPLIED` and fills `appliedAt`.
+
+Cancel before apply:
+
+```http
+POST http://localhost:3000/api/personnel/paf-records/1/cancel
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: non-applied records become `CANCELLED`; pending linked approval workflows are cancelled.
+
+Generate downstream profile history:
+
+```http
+POST http://localhost:3000/api/personnel/paf-records/1/profile-history
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "fields": [
+    {
+      "fieldName": "orgUnitId",
+      "previousValue": "1",
+      "newValue": "3",
+      "changeReason": "Department transfer PAF"
+    }
+  ]
+}
+
+GET http://localhost:3000/api/personnel/paf-records/1/profile-histories
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: profile history rows link back through `pafRecordId`.
+
+Generate downstream LOA record for leave/LOA PAFs:
+
+```http
+POST http://localhost:3000/api/personnel/paf-records/1/loa-record
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "loaType": "MEDICAL_LEAVE",
+  "startDate": "2027-06-01T00:00:00.000Z",
+  "expectedReturnDate": "2027-06-15T00:00:00.000Z",
+  "notes": "Generated from PAF API test"
+}
+
+GET http://localhost:3000/api/personnel/paf-records/1/loa-records
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: LOA record links back through `pafRecordId`.
+
+Print and PDF:
+
+```http
+GET http://localhost:3000/api/personnel/paf-records/1/print
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/personnel/paf-records/1/pdf
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: `/print` returns a printable HTML representation. `/pdf` returns a simple generated PDF document for API coverage; replace this with a formal report renderer if official government/company formatting is required.
+
+Negative tests:
+
+```http
+POST http://localhost:3000/api/personnel/paf-records/validate
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "actionType": "Department Transfer",
+  "payloadJson": {
+    "reason": "Missing target org unit"
+  }
+}
+```
+
+Expected: `valid: false` with an error requiring `toOrgUnitId` or `proposedOrgUnitId`.
+
+```http
+PATCH http://localhost:3000/api/personnel/paf-records/1/payload
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "payloadJson": "not an object"
+}
+```
+
+Expected: `400`.
+
+```http
+POST http://localhost:3000/api/personnel/paf-records/1/apply
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: `400` when the PAF is not approved or verified.
+
 ### Employee Self-Service Test
 
 Login as:
@@ -824,67 +1853,103 @@ Expected:
 
 ## 12. Pay Structure APIs
 
-Use Superadmin.
+Use Superadmin unless the test explicitly says to use Employee Self Service.
 
-### Read APIs
-
-```http
-GET /api/pay-structure/salary-grades
-GET /api/pay-structure/salary-grades/:id
-GET /api/pay-structure/salary-grade-steps
-GET /api/pay-structure/salary-grade-steps/:id
-GET /api/pay-structure/earning-template-families
-GET /api/pay-structure/earning-template-families/:id
-GET /api/pay-structure/earning-template-family-scopes
-GET /api/pay-structure/earning-template-family-scopes/:id
-GET /api/pay-structure/earning-template-revisions
-GET /api/pay-structure/earning-template-revisions/:id
-GET /api/pay-structure/earning-template-revision-lines
-GET /api/pay-structure/earning-template-revision-lines/:id
-GET /api/pay-structure/earning-components
-GET /api/pay-structure/earning-components/:id
-GET /api/pay-structure/formulas
-GET /api/pay-structure/formulas/:id
-GET /api/pay-structure/formula-versions
-GET /api/pay-structure/formula-versions/:id
-GET /api/pay-structure/employee-pay-profiles
-GET /api/pay-structure/employee-pay-profiles/:id
-```
-
-### Write APIs
-
-Create salary grade:
+All list endpoints support the shared paging/sorting contract:
 
 ```http
-POST http://localhost:3000/api/pay-structure/salary-grades
+GET http://localhost:3000/api/pay-structure/formulas?page=1&pageSize=20&sortBy=id&sortOrder=desc
 Authorization: Bearer SUPERADMIN_TOKEN
-Content-Type: application/json
-
-{
-  "code": "API-SG",
-  "name": "API Salary Grade",
-  "rateType": "MONTHLY",
-  "minSalary": 30000,
-  "maxSalary": 60000
-}
 ```
 
-Create salary grade step:
+Search and filter examples:
 
 ```http
-POST http://localhost:3000/api/pay-structure/salary-grade-steps
-Authorization: Bearer SUPERADMIN_TOKEN
-Content-Type: application/json
-
-{
-  "salaryGradeId": 1,
-  "stepNumber": 99,
-  "name": "API Step",
-  "amount": 35000
-}
+GET /api/pay-structure/formulas?search=allowance&status=ACTIVE
+GET /api/pay-structure/formula-versions?formulaId=1&current=true
+GET /api/pay-structure/earning-components?search=basic&category=BASE&valueSource=FORMULA
+GET /api/pay-structure/earning-template-families?templateKind=STANDARD&status=ACTIVE
+GET /api/pay-structure/earning-template-family-scopes?earningTemplateFamilyId=1&primary=true
+GET /api/pay-structure/earning-template-revisions?earningTemplateFamilyId=1&current=true
+GET /api/pay-structure/earning-template-revision-lines?earningTemplateRevisionId=1
+GET /api/pay-structure/employee-pay-profiles?employeeId=1&status=ACTIVE
+GET /api/pay-structure/salary-grades?search=manager&rateType=MONTHLY&status=ACTIVE
+GET /api/pay-structure/salary-grade-steps?salaryGradeId=1&stepNumber=1
 ```
 
-Create formula:
+### Endpoint Checklist
+
+```http
+POST   /api/pay-structure/formulas
+GET    /api/pay-structure/formulas
+GET    /api/pay-structure/formulas/:id
+PATCH  /api/pay-structure/formulas/:id
+PATCH  /api/pay-structure/formulas/:id/status
+GET    /api/pay-structure/formulas/:id/as-of?date=YYYY-MM-DD
+
+POST   /api/pay-structure/formula-versions
+GET    /api/pay-structure/formula-versions
+GET    /api/pay-structure/formula-versions/:id
+POST   /api/pay-structure/formula-versions/:id/set-current
+
+POST   /api/pay-structure/earning-components
+GET    /api/pay-structure/earning-components
+GET    /api/pay-structure/earning-components/:id
+PATCH  /api/pay-structure/earning-components/:id
+PATCH  /api/pay-structure/earning-components/:id/status
+POST   /api/pay-structure/earning-components/:id/resolve
+
+POST   /api/pay-structure/earning-template-families
+GET    /api/pay-structure/earning-template-families
+GET    /api/pay-structure/earning-template-families/:id
+PATCH  /api/pay-structure/earning-template-families/:id
+PATCH  /api/pay-structure/earning-template-families/:id/status
+POST   /api/pay-structure/earning-template-families/:id/variants
+GET    /api/pay-structure/earning-template-families/:id/current-revision
+
+POST   /api/pay-structure/earning-template-family-scopes
+GET    /api/pay-structure/earning-template-family-scopes
+GET    /api/pay-structure/earning-template-family-scopes/:id
+PATCH  /api/pay-structure/earning-template-family-scopes/:id
+POST   /api/pay-structure/earning-template-family-scopes/:id/set-primary
+
+POST   /api/pay-structure/earning-template-revisions
+GET    /api/pay-structure/earning-template-revisions
+GET    /api/pay-structure/earning-template-revisions/:id
+POST   /api/pay-structure/earning-template-revisions/:id/set-current
+
+POST   /api/pay-structure/earning-template-revision-lines
+GET    /api/pay-structure/earning-template-revision-lines
+GET    /api/pay-structure/earning-template-revision-lines/:id
+PATCH  /api/pay-structure/earning-template-revision-lines/:id
+DELETE /api/pay-structure/earning-template-revision-lines/:id
+POST   /api/pay-structure/earning-template-revisions/:id/reorder-lines
+
+POST   /api/pay-structure/employee-pay-profiles
+GET    /api/pay-structure/employee-pay-profiles
+GET    /api/pay-structure/employee-pay-profiles/:id
+PATCH  /api/pay-structure/employee-pay-profiles/:id
+PATCH  /api/pay-structure/employee-pay-profiles/:id/end
+GET    /api/employees/:employeeId/pay-profile/current
+
+POST   /api/pay-structure/salary-grades
+GET    /api/pay-structure/salary-grades
+GET    /api/pay-structure/salary-grades/:id
+PATCH  /api/pay-structure/salary-grades/:id
+PATCH  /api/pay-structure/salary-grades/:id/status
+DELETE /api/pay-structure/salary-grades/:id
+
+POST   /api/pay-structure/salary-grade-steps
+GET    /api/pay-structure/salary-grade-steps
+GET    /api/pay-structure/salary-grade-steps/:id
+GET    /api/pay-structure/salary-grades/:id/steps
+PATCH  /api/pay-structure/salary-grade-steps/:id
+DELETE /api/pay-structure/salary-grade-steps/:id
+```
+
+### Formula Catalog and Versions
+
+Create a formula:
 
 ```http
 POST http://localhost:3000/api/pay-structure/formulas
@@ -894,11 +1959,42 @@ Content-Type: application/json
 {
   "code": "API_FORMULA",
   "name": "API Test Formula",
-  "expression": "basePay * 0.10"
+  "expression": "basePay * 0.10",
+  "description": "API test formula",
+  "status": "ACTIVE"
 }
 ```
 
-Create formula version:
+Expected: `201`, projected formula response, audit event `PAY_FORMULA_CREATED`.
+
+List, search, get, update, and deactivate/reactivate:
+
+```http
+GET http://localhost:3000/api/pay-structure/formulas?search=API_FORMULA&status=ACTIVE
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/formulas/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+PATCH http://localhost:3000/api/pay-structure/formulas/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "name": "API Test Formula Updated",
+  "expression": "basePay * 0.12"
+}
+
+PATCH http://localhost:3000/api/pay-structure/formulas/1/status
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "status": "INACTIVE"
+}
+```
+
+Create formula versions:
 
 ```http
 POST http://localhost:3000/api/pay-structure/formula-versions
@@ -910,11 +2006,54 @@ Content-Type: application/json
   "versionNo": "api-v1",
   "expression": "basePay * 0.10",
   "effectiveStartDate": "2026-01-01T00:00:00.000Z",
-  "isCurrent": true
+  "effectiveEndDate": "2026-12-31T00:00:00.000Z",
+  "isCurrent": true,
+  "changeSummary": "Initial API test version"
 }
 ```
 
-Create earning component:
+```http
+POST http://localhost:3000/api/pay-structure/formula-versions
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "formulaId": 1,
+  "versionNo": "api-v2",
+  "expression": "basePay * 0.12",
+  "effectiveStartDate": "2027-01-01T00:00:00.000Z",
+  "isCurrent": true,
+  "changeSummary": "Supersedes API v1"
+}
+```
+
+Expected: the new current version clears `isCurrent` from the previous current version for the same formula.
+
+Read versions and set current:
+
+```http
+GET http://localhost:3000/api/pay-structure/formula-versions?formulaId=1&current=true
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/formula-versions/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+POST http://localhost:3000/api/pay-structure/formula-versions/1/set-current
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Get formula by effective date:
+
+```http
+GET http://localhost:3000/api/pay-structure/formulas/1/as-of?date=2026-06-01
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: response contains `formula`, matching `version`, and `asOf`.
+
+### Earning Components
+
+Create fixed and formula-backed components:
 
 ```http
 POST http://localhost:3000/api/pay-structure/earning-components
@@ -922,15 +2061,79 @@ Authorization: Bearer SUPERADMIN_TOKEN
 Content-Type: application/json
 
 {
-  "code": "API_ALLOWANCE",
-  "name": "API Allowance",
+  "code": "API_FIXED_ALLOWANCE",
+  "name": "API Fixed Allowance",
   "category": "ALLOWANCE",
   "valueSource": "FIXED",
-  "fixedAmount": 1000
+  "fixedAmount": 1000,
+  "isTaxableDefault": true,
+  "includeIn13thMonthDefault": false,
+  "status": "ACTIVE",
+  "description": "Fixed allowance for API testing"
 }
 ```
 
-Create earning template family:
+```http
+POST http://localhost:3000/api/pay-structure/earning-components
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "code": "API_FORMULA_ALLOWANCE",
+  "name": "API Formula Allowance",
+  "category": "ALLOWANCE",
+  "valueSource": "FORMULA",
+  "formulaVersionId": 2,
+  "status": "ACTIVE"
+}
+```
+
+List, get, update, and change status:
+
+```http
+GET http://localhost:3000/api/pay-structure/earning-components?search=API&category=ALLOWANCE&status=ACTIVE
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/earning-components/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+PATCH http://localhost:3000/api/pay-structure/earning-components/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "fixedAmount": 1250,
+  "description": "Updated during API testing"
+}
+
+PATCH http://localhost:3000/api/pay-structure/earning-components/1/status
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "status": "INACTIVE"
+}
+```
+
+Resolve component amounts:
+
+```http
+POST http://localhost:3000/api/pay-structure/earning-components/1/resolve
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "variables": {
+    "basePay": 50000
+  }
+}
+```
+
+Expected for fixed components: returns `amount` from `fixedAmount`. Expected for formula-backed components: evaluates arithmetic expressions using numeric variables. If `lookupTableVersionId` is set, expect `400` until lookup table schema/services are added.
+
+### Earning Template Families and Scopes
+
+Create a template family:
 
 ```http
 POST http://localhost:3000/api/pay-structure/earning-template-families
@@ -939,13 +2142,92 @@ Content-Type: application/json
 
 {
   "code": "API_TEMPLATE",
-  "name": "API Template",
+  "name": "API Monthly Template",
   "templateKind": "STANDARD",
-  "payBasisApplicability": "MONTHLY"
+  "showInDefaultPicker": true,
+  "payBasisApplicability": "MONTHLY",
+  "status": "ACTIVE",
+  "description": "Template created by API testing"
 }
 ```
 
-Create earning template revision:
+List, get, update, deactivate/reactivate, and create a variant:
+
+```http
+GET http://localhost:3000/api/pay-structure/earning-template-families?search=API_TEMPLATE&status=ACTIVE
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/earning-template-families/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+PATCH http://localhost:3000/api/pay-structure/earning-template-families/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "description": "Updated template description"
+}
+
+PATCH http://localhost:3000/api/pay-structure/earning-template-families/1/status
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "status": "INACTIVE"
+}
+
+POST http://localhost:3000/api/pay-structure/earning-template-families/1/variants
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "code": "API_TEMPLATE_VARIANT",
+  "name": "API Monthly Template Variant",
+  "payBasisApplicability": "MONTHLY",
+  "description": "Child variant of API_TEMPLATE"
+}
+```
+
+Create and manage scopes:
+
+```http
+POST http://localhost:3000/api/pay-structure/earning-template-family-scopes
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "earningTemplateFamilyId": 1,
+  "scopeType": "ORG_UNIT",
+  "scopeRefId": 1,
+  "isPrimary": true,
+  "notes": "Primary scope for API testing"
+}
+```
+
+```http
+GET http://localhost:3000/api/pay-structure/earning-template-family-scopes?earningTemplateFamilyId=1&primary=true
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/earning-template-family-scopes/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+PATCH http://localhost:3000/api/pay-structure/earning-template-family-scopes/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "notes": "Updated API scope note"
+}
+
+POST http://localhost:3000/api/pay-structure/earning-template-family-scopes/1/set-primary
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: setting one scope primary clears other primary scopes for the same template family.
+
+### Template Revisions and Lines
+
+Create two revisions:
 
 ```http
 POST http://localhost:3000/api/pay-structure/earning-template-revisions
@@ -955,12 +2237,46 @@ Content-Type: application/json
 {
   "earningTemplateFamilyId": 1,
   "versionNo": "api-v1",
+  "currencyCode": "PHP",
   "effectiveStartDate": "2026-01-01T00:00:00.000Z",
-  "isCurrent": true
+  "effectiveEndDate": "2026-12-31T00:00:00.000Z",
+  "isCurrent": true,
+  "changeSummary": "Initial API template revision"
 }
 ```
 
-Create earning template revision line:
+```http
+POST http://localhost:3000/api/pay-structure/earning-template-revisions
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "earningTemplateFamilyId": 1,
+  "versionNo": "api-v2",
+  "currencyCode": "PHP",
+  "effectiveStartDate": "2027-01-01T00:00:00.000Z",
+  "isCurrent": true,
+  "changeSummary": "Second API template revision"
+}
+```
+
+Read revisions and current revision:
+
+```http
+GET http://localhost:3000/api/pay-structure/earning-template-revisions?earningTemplateFamilyId=1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/earning-template-revisions/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/earning-template-families/1/current-revision
+Authorization: Bearer SUPERADMIN_TOKEN
+
+POST http://localhost:3000/api/pay-structure/earning-template-revisions/1/set-current
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Create, update, reorder, and remove lines:
 
 ```http
 POST http://localhost:3000/api/pay-structure/earning-template-revision-lines
@@ -970,12 +2286,47 @@ Content-Type: application/json
 {
   "earningTemplateRevisionId": 1,
   "earningComponentId": 1,
-  "sortOrder": 99,
+  "sortOrder": 1,
   "isRequired": true
 }
 ```
 
-Create employee pay profile:
+```http
+GET http://localhost:3000/api/pay-structure/earning-template-revision-lines?earningTemplateRevisionId=1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/earning-template-revision-lines/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+PATCH http://localhost:3000/api/pay-structure/earning-template-revision-lines/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "sortOrder": 2,
+  "isRequired": false
+}
+
+POST http://localhost:3000/api/pay-structure/earning-template-revisions/1/reorder-lines
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "lines": [
+    { "id": 1, "sortOrder": 1 },
+    { "id": 2, "sortOrder": 2 }
+  ]
+}
+
+DELETE http://localhost:3000/api/pay-structure/earning-template-revision-lines/1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: reorder rejects line IDs that do not belong to the target revision.
+
+### Employee Pay Profiles
+
+Create, read, update, end, and get current profile:
 
 ```http
 POST http://localhost:3000/api/pay-structure/employee-pay-profiles
@@ -985,15 +2336,21 @@ Content-Type: application/json
 {
   "employeeId": 1,
   "earningTemplateFamilyId": 1,
-  "payBasis": "Monthly",
+  "payScheduleId": 1,
+  "payBasis": "MONTHLY",
   "effectiveStartDate": "2027-01-01T00:00:00.000Z",
-  "status": "ACTIVE"
+  "status": "ACTIVE",
+  "notes": "Created during API testing"
 }
 ```
 
-Update employee pay profile:
-
 ```http
+GET http://localhost:3000/api/pay-structure/employee-pay-profiles?employeeId=1&status=ACTIVE
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/employee-pay-profiles/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
 PATCH http://localhost:3000/api/pay-structure/employee-pay-profiles/1
 Authorization: Bearer SUPERADMIN_TOKEN
 Content-Type: application/json
@@ -1001,7 +2358,167 @@ Content-Type: application/json
 {
   "notes": "Updated during API testing"
 }
+
+GET http://localhost:3000/api/employees/1/pay-profile/current?date=2027-06-01
+Authorization: Bearer SUPERADMIN_TOKEN
+
+PATCH http://localhost:3000/api/pay-structure/employee-pay-profiles/1/end
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "effectiveEndDate": "2027-12-31T00:00:00.000Z",
+  "status": "ENDED"
+}
 ```
+
+Employee self-read check:
+
+```http
+GET http://localhost:3000/api/employees/1/pay-profile/current?date=2027-06-01
+Authorization: Bearer EMPLOYEE_SELF_SERVICE_TOKEN
+```
+
+Expected: succeeds only when the token belongs to employee `1`; otherwise expect `403`.
+
+### Salary Grades and Steps
+
+Create, read, update, status-change, and delete/deactivate salary grade:
+
+```http
+POST http://localhost:3000/api/pay-structure/salary-grades
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "code": "API-SG",
+  "name": "API Salary Grade",
+  "rateType": "MONTHLY",
+  "minSalary": 30000,
+  "maxSalary": 60000,
+  "currency": "PHP",
+  "status": "ACTIVE"
+}
+```
+
+```http
+GET http://localhost:3000/api/pay-structure/salary-grades?search=API-SG&status=ACTIVE
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/salary-grades/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+PATCH http://localhost:3000/api/pay-structure/salary-grades/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "maxSalary": 65000
+}
+
+PATCH http://localhost:3000/api/pay-structure/salary-grades/1/status
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "status": "INACTIVE"
+}
+
+DELETE http://localhost:3000/api/pay-structure/salary-grades/1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: delete hard-deletes unused grades; if referenced, it returns `deleted: false` and status `INACTIVE`.
+
+Create and test salary grade steps:
+
+```http
+POST http://localhost:3000/api/pay-structure/salary-grade-steps
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "salaryGradeId": 1,
+  "stepNumber": 1,
+  "name": "API Step 1",
+  "amount": 35000
+}
+```
+
+```http
+GET http://localhost:3000/api/pay-structure/salary-grade-steps?salaryGradeId=1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/salary-grade-steps/1
+Authorization: Bearer SUPERADMIN_TOKEN
+
+GET http://localhost:3000/api/pay-structure/salary-grades/1/steps
+Authorization: Bearer SUPERADMIN_TOKEN
+
+PATCH http://localhost:3000/api/pay-structure/salary-grade-steps/1
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "amount": 36000
+}
+
+DELETE http://localhost:3000/api/pay-structure/salary-grade-steps/1
+Authorization: Bearer SUPERADMIN_TOKEN
+```
+
+Expected: step delete returns `400` if the step is already used by a position.
+
+### Negative Tests
+
+```http
+POST http://localhost:3000/api/pay-structure/formula-versions
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "formulaId": 1,
+  "versionNo": "bad-date",
+  "expression": "basePay",
+  "effectiveStartDate": "2027-01-01T00:00:00.000Z",
+  "effectiveEndDate": "2026-01-01T00:00:00.000Z"
+}
+```
+
+Expected: `400` because the end date is before the start date.
+
+```http
+POST http://localhost:3000/api/pay-structure/earning-components/999999/resolve
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "variables": {
+    "basePay": 50000
+  }
+}
+```
+
+Expected: `404`.
+
+```http
+POST http://localhost:3000/api/pay-structure/earning-template-revisions/1/reorder-lines
+Authorization: Bearer SUPERADMIN_TOKEN
+Content-Type: application/json
+
+{
+  "lines": []
+}
+```
+
+Expected: `400` because `lines` must be a non-empty array.
+
+```http
+GET http://localhost:3000/api/pay-structure/formulas
+Authorization: Bearer EMPLOYEE_SELF_SERVICE_TOKEN
+```
+
+Expected: `403` unless the token has pay-structure read permission.
 
 ---
 

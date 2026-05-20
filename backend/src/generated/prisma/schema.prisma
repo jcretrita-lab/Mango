@@ -1,0 +1,1250 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                         Int                                 @id @default(autoincrement())
+  email                      String                              @unique
+  firstName                  String
+  lastName                   String
+  displayName                String
+  employeeId                 Int?                                @unique
+  employee                   Employee?                           @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  status                     String                              @default("ACTIVE")
+  isActive                   Boolean                             @default(true)
+  createdAt                  DateTime                            @default(now())
+  createdBy                  Int                                 @default(1)
+  updatedAt                  DateTime                            @updatedAt
+  updatedBy                  Int                                 @default(1)
+  credential                 UserCredential?
+  sessions                   UserSession[]
+  authTokens                 UserAuthToken[]
+  roleAssignments            UserRoleAssignment[]
+  auditEvents                AuditEvent[]                        @relation("AuditActor")
+  delegationsFrom            ApprovalDelegation[]                @relation("DelegationFrom")
+  delegationsTo              ApprovalDelegation[]                @relation("DelegationTo")
+  requestedApprovals         ApprovalRequest[]
+  actedWorkflows             ApprovalWorkflow[]
+  workflowNotes              ApprovalWorkflowNote[]
+  approverSequences          ApproverSequence[]
+  secondaryApproverSequences ApprovalSequenceSecondaryApprover[]
+
+  @@index([status, isActive])
+  @@index([employeeId])
+}
+
+model UserCredential {
+  id                 Int       @id @default(autoincrement())
+  userId             Int       @unique
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash       String
+  passwordUpdatedAt  DateTime  @default(now())
+  mustChangePassword Boolean   @default(false)
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+  createdAt          DateTime  @default(now())
+  createdBy          Int       @default(1)
+  updatedAt          DateTime  @updatedAt
+  updatedBy          Int       @default(1)
+
+  @@index([lockedUntil])
+}
+
+model UserSession {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status     String    @default("ACTIVE")
+  userAgent  String?
+  ipAddress  String?
+  lastSeenAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  createdBy  Int       @default(1)
+  updatedAt  DateTime  @updatedAt
+  updatedBy  Int       @default(1)
+
+  @@index([userId, status, expiresAt])
+  @@index([status, expiresAt])
+}
+
+model UserAuthToken {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenType  String
+  tokenHash  String
+  expiresAt  DateTime?
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  createdBy  Int       @default(1)
+  updatedAt  DateTime  @updatedAt
+  updatedBy  Int       @default(1)
+
+  @@index([userId, tokenType, consumedAt])
+}
+
+model Role {
+  id                                 Int                                 @id @default(autoincrement())
+  code                               String                              @unique
+  name                               String
+  description                        String?
+  status                             String                              @default("ACTIVE")
+  createdAt                          DateTime                            @default(now())
+  createdBy                          Int                                 @default(1)
+  updatedAt                          DateTime                            @updatedAt
+  updatedBy                          Int                                 @default(1)
+  userRoleAssignments                UserRoleAssignment[]
+  rolePermissionAssignments          RolePermissionAssignment[]
+  approverSequences                  ApproverSequence[]
+  approvalSequenceSecondaryApprovers ApprovalSequenceSecondaryApprover[]
+}
+
+model Permission {
+  id                        Int                        @id @default(autoincrement())
+  code                      String                     @unique
+  name                      String
+  description               String?
+  status                    String                     @default("ACTIVE")
+  createdAt                 DateTime                   @default(now())
+  createdBy                 Int                        @default(1)
+  updatedAt                 DateTime                   @updatedAt
+  updatedBy                 Int                        @default(1)
+  rolePermissionAssignments RolePermissionAssignment[]
+}
+
+model SystemModule {
+  id                        Int                        @id @default(autoincrement())
+  code                      String                     @unique
+  name                      String
+  description               String?
+  createdAt                 DateTime                   @default(now())
+  createdBy                 Int                        @default(1)
+  updatedAt                 DateTime                   @updatedAt
+  updatedBy                 Int                        @default(1)
+  moduleConfigs             PermissionModuleConfig[]
+  rolePermissionAssignments RolePermissionAssignment[]
+}
+
+model PermissionModuleConfig {
+  id                        Int                            @id @default(autoincrement())
+  systemModuleId            Int
+  systemModule              SystemModule                   @relation(fields: [systemModuleId], references: [id], onDelete: Cascade)
+  code                      String                         @unique
+  name                      String
+  description               String?
+  createdAt                 DateTime                       @default(now())
+  createdBy                 Int                            @default(1)
+  updatedAt                 DateTime                       @updatedAt
+  updatedBy                 Int                            @default(1)
+  scopes                    PermissionModuleConfigScope[]
+  actions                   PermissionModuleConfigAction[]
+  states                    PermissionModuleConfigState[]
+  rolePermissionAssignments RolePermissionAssignment[]
+}
+
+model PermissionModuleConfigScope {
+  id                        Int                        @id @default(autoincrement())
+  permissionModuleConfigId  Int
+  permissionModuleConfig    PermissionModuleConfig     @relation(fields: [permissionModuleConfigId], references: [id], onDelete: Cascade)
+  code                      String                     @unique
+  name                      String
+  createdAt                 DateTime                   @default(now())
+  createdBy                 Int                        @default(1)
+  updatedAt                 DateTime                   @updatedAt
+  updatedBy                 Int                        @default(1)
+  rolePermissionAssignments RolePermissionAssignment[]
+}
+
+model PermissionModuleConfigAction {
+  id                        Int                        @id @default(autoincrement())
+  permissionModuleConfigId  Int
+  permissionModuleConfig    PermissionModuleConfig     @relation(fields: [permissionModuleConfigId], references: [id], onDelete: Cascade)
+  code                      String                     @unique
+  name                      String
+  createdAt                 DateTime                   @default(now())
+  createdBy                 Int                        @default(1)
+  updatedAt                 DateTime                   @updatedAt
+  updatedBy                 Int                        @default(1)
+  rolePermissionAssignments RolePermissionAssignment[]
+}
+
+model PermissionModuleConfigState {
+  id                        Int                        @id @default(autoincrement())
+  permissionModuleConfigId  Int
+  permissionModuleConfig    PermissionModuleConfig     @relation(fields: [permissionModuleConfigId], references: [id], onDelete: Cascade)
+  code                      String                     @unique
+  name                      String
+  createdAt                 DateTime                   @default(now())
+  createdBy                 Int                        @default(1)
+  updatedAt                 DateTime                   @updatedAt
+  updatedBy                 Int                        @default(1)
+  rolePermissionAssignments RolePermissionAssignment[]
+}
+
+model UserRoleAssignment {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId     Int
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  isActive   Boolean  @default(true)
+  isPrimary  Boolean  @default(false)
+  assignedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  createdBy  Int      @default(1)
+  updatedAt  DateTime @updatedAt
+  updatedBy  Int      @default(1)
+
+  @@unique([userId, roleId])
+  @@index([userId, isActive])
+  @@index([roleId, isActive])
+}
+
+model RolePermissionAssignment {
+  id                             Int                           @id @default(autoincrement())
+  roleId                         Int
+  role                           Role                          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId                   Int
+  permission                     Permission                    @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  systemModuleId                 Int?
+  systemModule                   SystemModule?                 @relation(fields: [systemModuleId], references: [id], onDelete: Cascade)
+  permissionModuleConfigId       Int?
+  permissionModuleConfig         PermissionModuleConfig?       @relation(fields: [permissionModuleConfigId], references: [id], onDelete: Cascade)
+  permissionModuleConfigScopeId  Int?
+  permissionModuleConfigScope    PermissionModuleConfigScope?  @relation(fields: [permissionModuleConfigScopeId], references: [id], onDelete: Cascade)
+  permissionModuleConfigActionId Int?
+  permissionModuleConfigAction   PermissionModuleConfigAction? @relation(fields: [permissionModuleConfigActionId], references: [id], onDelete: Cascade)
+  permissionModuleConfigStateId  Int?
+  permissionModuleConfigState    PermissionModuleConfigState?  @relation(fields: [permissionModuleConfigStateId], references: [id], onDelete: Cascade)
+  isActive                       Boolean                       @default(true)
+  createdAt                      DateTime                      @default(now())
+  createdBy                      Int                           @default(1)
+  updatedAt                      DateTime                      @updatedAt
+  updatedBy                      Int                           @default(1)
+
+  @@index([roleId, permissionId])
+  @@index([roleId, isActive])
+  @@index([permissionId, isActive])
+  @@index([systemModuleId])
+}
+
+model AuditEvent {
+  id           Int      @id @default(autoincrement())
+  actorUserId  Int?
+  actor        User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  eventType    String
+  entityType   String?
+  entityId     String?
+  route        String?
+  ipAddress    String?
+  userAgent    String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([entityType, entityId])
+}
+
+model CompanyProfile {
+  id                   Int      @id @default(autoincrement())
+  registeredName       String
+  displayName          String
+  registrationType     String
+  registrationNo       String
+  tin                  String
+  branchCode           String?
+  rdoCode              String?
+  sssEmployerNo        String?
+  philhealthEmployerNo String?
+  pagibigEmployerNo    String?
+  businessAddress      String
+  countryCode          String   @default("PH")
+  rootOrgUnitId        Int?
+  status               String   @default("ACTIVE")
+  createdAt            DateTime @default(now())
+  createdBy            Int      @default(1)
+  updatedAt            DateTime @updatedAt
+  updatedBy            Int      @default(1)
+}
+
+model HierarchyLevel {
+  id              Int              @id @default(autoincrement())
+  levelNo         Int
+  label           String
+  description     String?
+  createdAt       DateTime         @default(now())
+  createdBy       Int              @default(1)
+  updatedAt       DateTime         @updatedAt
+  updatedBy       Int              @default(1)
+  orgUnits        OrgUnit[]
+  orgUnitVersions OrgUnitVersion[]
+
+  @@unique([levelNo])
+}
+
+model Site {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  address     String?
+  city        String?
+  region      String?
+  countryCode String   @default("PH")
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(1)
+  createdAt   DateTime @default(now())
+  createdBy   Int      @default(1)
+  updatedAt   DateTime @updatedAt
+  updatedBy   Int      @default(1)
+}
+
+model OrgUnit {
+  id               Int              @id @default(autoincrement())
+  parentOrgUnitId  Int?
+  parentOrgUnit    OrgUnit?         @relation("OrgUnitParent", fields: [parentOrgUnitId], references: [id])
+  hierarchyLevelId Int
+  hierarchyLevel   HierarchyLevel   @relation(fields: [hierarchyLevelId], references: [id])
+  headPositionId   Int?
+  headPosition     Position?        @relation("OrgUnitHead", fields: [headPositionId], references: [id])
+  code             String           @unique
+  name             String
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  createdBy        Int              @default(1)
+  updatedAt        DateTime         @updatedAt
+  updatedBy        Int              @default(1)
+  childOrgUnits    OrgUnit[]        @relation("OrgUnitParent")
+  versions         OrgUnitVersion[] @relation("OrgUnitVersions")
+  asParentVersions OrgUnitVersion[] @relation("OrgUnitAsParentVersions")
+  ancestorOf       OrgUnitClosure[] @relation("OrgUnitAncestors")
+  descendantOf     OrgUnitClosure[] @relation("OrgUnitDescendants")
+  positions        Position[]
+
+  @@index([parentOrgUnitId, isActive])
+  @@index([hierarchyLevelId, isActive])
+}
+
+model OrgUnitClosure {
+  id                  Int      @id @default(autoincrement())
+  ancestorOrgUnitId   Int
+  ancestorOrgUnit     OrgUnit  @relation("OrgUnitAncestors", fields: [ancestorOrgUnitId], references: [id], onDelete: Cascade)
+  descendantOrgUnitId Int
+  descendantOrgUnit   OrgUnit  @relation("OrgUnitDescendants", fields: [descendantOrgUnitId], references: [id], onDelete: Cascade)
+  depth               Int
+  createdAt           DateTime @default(now())
+  createdBy           Int      @default(1)
+  updatedAt           DateTime @updatedAt
+  updatedBy           Int      @default(1)
+
+  @@unique([ancestorOrgUnitId, descendantOrgUnitId, depth])
+}
+
+model OrgUnitVersion {
+  id                 Int            @id @default(autoincrement())
+  orgUnitId          Int
+  orgUnit            OrgUnit        @relation("OrgUnitVersions", fields: [orgUnitId], references: [id], onDelete: Cascade)
+  parentOrgUnitId    Int?
+  parentOrgUnit      OrgUnit?       @relation("OrgUnitAsParentVersions", fields: [parentOrgUnitId], references: [id])
+  hierarchyLevelId   Int
+  hierarchyLevel     HierarchyLevel @relation(fields: [hierarchyLevelId], references: [id])
+  headPositionId     Int?
+  headPosition       Position?      @relation("OrgUnitVersionHead", fields: [headPositionId], references: [id])
+  name               String
+  effectiveStartDate DateTime
+  effectiveEndDate   DateTime?
+  isCurrent          Boolean        @default(true)
+  changeReason       String?
+  createdAt          DateTime       @default(now())
+  createdBy          Int            @default(1)
+  updatedAt          DateTime       @updatedAt
+  updatedBy          Int            @default(1)
+
+  @@index([orgUnitId, isCurrent, effectiveStartDate])
+}
+
+model Rank {
+  id               Int               @id @default(autoincrement())
+  name             String
+  sortOrder        Int
+  color            String?
+  mode             String
+  createdAt        DateTime          @default(now())
+  createdBy        Int               @default(1)
+  updatedAt        DateTime          @updatedAt
+  updatedBy        Int               @default(1)
+  levels           RankLevel[]
+  positionProfiles PositionProfile[]
+
+  @@unique([name])
+}
+
+model RankLevel {
+  id               Int               @id @default(autoincrement())
+  rankId           Int
+  rank             Rank              @relation(fields: [rankId], references: [id], onDelete: Cascade)
+  code             String
+  sortOrder        Int
+  createdAt        DateTime          @default(now())
+  createdBy        Int               @default(1)
+  updatedAt        DateTime          @updatedAt
+  updatedBy        Int               @default(1)
+  positionProfiles PositionProfile[]
+
+  @@unique([rankId, code])
+  @@unique([rankId, sortOrder])
+}
+
+model SalaryGrade {
+  id                Int                @id @default(autoincrement())
+  code              String             @unique
+  name              String
+  rateType          String
+  minSalary         Decimal?           @db.Decimal(15, 2)
+  maxSalary         Decimal?           @db.Decimal(15, 2)
+  currency          String             @default("PHP")
+  status            String             @default("ACTIVE")
+  createdAt         DateTime           @default(now())
+  createdBy         Int                @default(1)
+  updatedAt         DateTime           @updatedAt
+  updatedBy         Int                @default(1)
+  steps             SalaryGradeStep[]
+  positionProfiles  PositionProfile[]
+  positionSubLevels PositionSubLevel[]
+  positions         Position[]
+  employments       Employment[]
+}
+
+model SalaryGradeStep {
+  id            Int         @id @default(autoincrement())
+  salaryGradeId Int
+  salaryGrade   SalaryGrade @relation(fields: [salaryGradeId], references: [id], onDelete: Cascade)
+  stepNumber    Int
+  name          String
+  amount        Decimal     @db.Decimal(15, 2)
+  createdAt     DateTime    @default(now())
+  createdBy     Int         @default(1)
+  updatedAt     DateTime    @updatedAt
+  updatedBy     Int         @default(1)
+  positions     Position[]
+
+  @@unique([salaryGradeId, stepNumber])
+}
+
+model PositionTemplate {
+  id               Int               @id @default(autoincrement())
+  name             String
+  family           String?
+  category         String?
+  description      String?
+  createdAt        DateTime          @default(now())
+  createdBy        Int               @default(1)
+  updatedAt        DateTime          @updatedAt
+  updatedBy        Int               @default(1)
+  positionProfiles PositionProfile[]
+
+  @@unique([name])
+}
+
+model PositionProfile {
+  id                   Int                @id @default(autoincrement())
+  positionTemplateId   Int
+  positionTemplate     PositionTemplate   @relation(fields: [positionTemplateId], references: [id], onDelete: Cascade)
+  label                String
+  rankId               Int?
+  rank                 Rank?              @relation(fields: [rankId], references: [id])
+  rankLevelId          Int?
+  rankLevel            RankLevel?         @relation(fields: [rankLevelId], references: [id])
+  progressionMode      String
+  defaultSalaryGradeId Int?
+  defaultSalaryGrade   SalaryGrade?       @relation(fields: [defaultSalaryGradeId], references: [id])
+  createdAt            DateTime           @default(now())
+  createdBy            Int                @default(1)
+  updatedAt            DateTime           @updatedAt
+  updatedBy            Int                @default(1)
+  subLevels            PositionSubLevel[]
+  positions            Position[]
+
+  @@unique([positionTemplateId, label])
+}
+
+model PositionSubLevel {
+  id                Int             @id @default(autoincrement())
+  positionProfileId Int
+  positionProfile   PositionProfile @relation(fields: [positionProfileId], references: [id], onDelete: Cascade)
+  name              String
+  sortOrder         Int
+  salaryGradeId     Int?
+  salaryGrade       SalaryGrade?    @relation(fields: [salaryGradeId], references: [id])
+  createdAt         DateTime        @default(now())
+  createdBy         Int             @default(1)
+  updatedAt         DateTime        @updatedAt
+  updatedBy         Int             @default(1)
+  positions         Position[]
+
+  @@unique([positionProfileId, sortOrder])
+}
+
+model Position {
+  id                                 Int                                 @id @default(autoincrement())
+  orgUnitId                          Int
+  orgUnit                            OrgUnit                             @relation(fields: [orgUnitId], references: [id])
+  positionProfileId                  Int
+  positionProfile                    PositionProfile                     @relation(fields: [positionProfileId], references: [id])
+  positionSubLevelId                 Int?
+  positionSubLevel                   PositionSubLevel?                   @relation(fields: [positionSubLevelId], references: [id])
+  salaryGradeId                      Int?
+  salaryGrade                        SalaryGrade?                        @relation(fields: [salaryGradeId], references: [id])
+  salaryGradeStepId                  Int?
+  salaryGradeStep                    SalaryGradeStep?                    @relation(fields: [salaryGradeStepId], references: [id])
+  supervisorPositionId               Int?
+  supervisor                         Position?                           @relation("PositionSupervision", fields: [supervisorPositionId], references: [id])
+  title                              String
+  employmentStatus                   String
+  defaultBasePay                     Decimal                             @db.Decimal(15, 2)
+  plannedHeadcount                   Int                                 @default(1)
+  fte                                Decimal                             @db.Decimal(5, 2)
+  createdAt                          DateTime                            @default(now())
+  createdBy                          Int                                 @default(1)
+  updatedAt                          DateTime                            @updatedAt
+  updatedBy                          Int                                 @default(1)
+  subordinates                       Position[]                          @relation("PositionSupervision")
+  unitHeaded                         OrgUnit[]                           @relation("OrgUnitHead")
+  versionHeaded                      OrgUnitVersion[]                    @relation("OrgUnitVersionHead")
+  assignments                        PositionAssignment[]
+  approverSequences                  ApproverSequence[]
+  approvalSequenceSecondaryApprovers ApprovalSequenceSecondaryApprover[]
+}
+
+model PositionAssignment {
+  id             Int          @id @default(autoincrement())
+  positionId     Int
+  position       Position     @relation(fields: [positionId], references: [id])
+  employeeId     Int?
+  employee       Employee?    @relation("EmployeeAssignments", fields: [employeeId], references: [id])
+  startDate      DateTime
+  endDate        DateTime?
+  assignmentType String
+  fte            Decimal      @db.Decimal(5, 2)
+  version        Int          @default(1)
+  createdAt      DateTime     @default(now())
+  createdBy      Int          @default(1)
+  updatedAt      DateTime     @updatedAt
+  updatedBy      Int          @default(1)
+  employments    Employment[]
+  primaryIn      Employee[]   @relation("PrimaryAssignment")
+
+  @@index([employeeId, startDate, endDate])
+  @@index([positionId, startDate, endDate])
+}
+
+model Employee {
+  id                          Int                         @id @default(autoincrement())
+  employeeNumber              String                      @unique
+  firstName                   String
+  lastName                    String
+  displayName                 String
+  orgUnitJson                 Json?
+  roleTitle                   String?
+  email                       String                      @unique
+  phone                       String?
+  status                      String
+  jobType                     String
+  avatarUrl                   String?
+  primaryPositionAssignmentId Int?
+  primaryPositionAssignment   PositionAssignment?         @relation("PrimaryAssignment", fields: [primaryPositionAssignmentId], references: [id])
+  createdAt                   DateTime                    @default(now())
+  createdBy                   Int                         @default(1)
+  updatedAt                   DateTime                    @updatedAt
+  updatedBy                   Int                         @default(1)
+  user                        User?
+  profile                     EmployeeProfile?
+  employments                 Employment[]
+  educationRecords            EducationRecord[]
+  examRecords                 ExamRecord[]
+  employmentHistory           EmploymentHistoryRecord[]
+  referenceContacts           ReferenceContact[]
+  familyMembers               FamilyMember[]
+  emergencyContacts           EmergencyContact[]
+  fieldValues                 EmployeeFieldValue[]
+  onboardingRecords           EmployeeOnboardingRecord[]
+  offboardingRecords          EmployeeOffboardingRecord[]
+  loaRecords                  EmployeeLoaRecord[]
+  pafRecords                  PafRecord[]
+  profileHistories            EmployeeProfileHistory[]
+  payProfiles                 EmployeePayProfile[]
+  assignments                 PositionAssignment[]        @relation("EmployeeAssignments")
+  approvalsRequested          ApprovalRequest[]
+
+  @@index([status, jobType])
+}
+
+model Employment {
+  id                   Int                 @id @default(autoincrement())
+  employeeId           Int
+  employee             Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  positionAssignmentId Int?
+  positionAssignment   PositionAssignment? @relation(fields: [positionAssignmentId], references: [id])
+  status               String
+  jobType              String
+  payScheduleId        Int?
+  paySchedule          SalaryGrade?        @relation(fields: [payScheduleId], references: [id])
+  startDate            DateTime
+  endDate              DateTime?
+  remarks              String?
+  createdAt            DateTime            @default(now())
+  createdBy            Int                 @default(1)
+  updatedAt            DateTime            @updatedAt
+  updatedBy            Int                 @default(1)
+
+  @@index([employeeId, startDate, endDate])
+}
+
+model EmployeeProfile {
+  id                 Int       @id @default(autoincrement())
+  employeeId         Int       @unique
+  employee           Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  birthDate          DateTime?
+  gender             String?
+  civilStatus        String?
+  residentialAddress String?
+  sssNo              String?
+  tinNo              String?
+  philhealthNo       String?
+  pagibigNo          String?
+  bankName           String?
+  bankAccountNo      String?
+  createdAt          DateTime  @default(now())
+  createdBy          Int       @default(1)
+  updatedAt          DateTime  @updatedAt
+  updatedBy          Int       @default(1)
+}
+
+model EducationRecord {
+  id            Int       @id @default(autoincrement())
+  employeeId    Int
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  attainment    String
+  course        String?
+  school        String
+  dateGraduated DateTime?
+  createdAt     DateTime  @default(now())
+  createdBy     Int       @default(1)
+  updatedAt     DateTime  @updatedAt
+  updatedBy     Int       @default(1)
+
+  @@index([employeeId])
+}
+
+model ExamRecord {
+  id          Int       @id @default(autoincrement())
+  employeeId  Int
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  dateTaken   DateTime?
+  name        String
+  rating      String?
+  description String?
+  createdAt   DateTime  @default(now())
+  createdBy   Int       @default(1)
+  updatedAt   DateTime  @updatedAt
+  updatedBy   Int       @default(1)
+
+  @@index([employeeId])
+}
+
+model EmploymentHistoryRecord {
+  id         Int       @id @default(autoincrement())
+  employeeId Int
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company    String
+  address    String?
+  position   String?
+  department String?
+  startDate  DateTime?
+  endDate    DateTime?
+  createdAt  DateTime  @default(now())
+  createdBy  Int       @default(1)
+  updatedAt  DateTime  @updatedAt
+  updatedBy  Int       @default(1)
+
+  @@index([employeeId])
+}
+
+model ReferenceContact {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  firstName  String
+  lastName   String
+  position   String?
+  contactNo  String?
+  business   String?
+  address    String?
+  createdAt  DateTime @default(now())
+  createdBy  Int      @default(1)
+  updatedAt  DateTime @updatedAt
+  updatedBy  Int      @default(1)
+
+  @@index([employeeId])
+}
+
+model FamilyMember {
+  id           Int       @id @default(autoincrement())
+  employeeId   Int
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  relationship String
+  firstName    String
+  lastName     String
+  birthday     DateTime?
+  occupation   String?
+  address      String?
+  createdAt    DateTime  @default(now())
+  createdBy    Int       @default(1)
+  updatedAt    DateTime  @updatedAt
+  updatedBy    Int       @default(1)
+
+  @@index([employeeId])
+}
+
+model EmergencyContact {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  relationship String
+  firstName    String
+  lastName     String
+  contactNo    String?
+  email        String?
+  createdAt    DateTime @default(now())
+  createdBy    Int      @default(1)
+  updatedAt    DateTime @updatedAt
+  updatedBy    Int      @default(1)
+
+  @@index([employeeId])
+}
+
+model PisTab {
+  id          Int        @id @default(autoincrement())
+  code        String     @unique
+  name        String
+  description String?
+  sortOrder   Int        @default(1)
+  isActive    Boolean    @default(true)
+  isSystem    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  createdBy   Int        @default(1)
+  updatedAt   DateTime   @updatedAt
+  updatedBy   Int        @default(1)
+  fields      PisField[]
+}
+
+model PisField {
+  id              Int                  @id @default(autoincrement())
+  pisTabId        Int
+  tab             PisTab               @relation(fields: [pisTabId], references: [id], onDelete: Cascade)
+  code            String               @unique
+  label           String
+  dataType        String
+  validationRegex String?
+  isSensitive     Boolean              @default(false)
+  sortOrder       Int                  @default(1)
+  isSystem        Boolean              @default(false)
+  sourceTable     String?
+  sourceColumn    String?
+  placeholder     String?
+  helpText        String?
+  createdAt       DateTime             @default(now())
+  createdBy       Int                  @default(1)
+  updatedAt       DateTime             @updatedAt
+  updatedBy       Int                  @default(1)
+  options         PisFieldOption[]
+  policies        PisFieldPolicy[]
+  values          EmployeeFieldValue[]
+}
+
+model PisFieldOption {
+  id         Int      @id @default(autoincrement())
+  pisFieldId Int
+  field      PisField @relation(fields: [pisFieldId], references: [id], onDelete: Cascade)
+  code       String   @unique
+  label      String
+  sortOrder  Int      @default(1)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  createdBy  Int      @default(1)
+  updatedAt  DateTime @updatedAt
+  updatedBy  Int      @default(1)
+}
+
+model PisFieldPolicy {
+  id         Int      @id @default(autoincrement())
+  pisFieldId Int
+  field      PisField @relation(fields: [pisFieldId], references: [id], onDelete: Cascade)
+  scopeType  String
+  scopeId    Int?
+  isEnabled  Boolean  @default(true)
+  isRequired Boolean  @default(false)
+  priority   Int      @default(1)
+  createdAt  DateTime @default(now())
+  createdBy  Int      @default(1)
+  updatedAt  DateTime @updatedAt
+  updatedBy  Int      @default(1)
+}
+
+model EmployeeFieldValue {
+  id         Int                         @id @default(autoincrement())
+  employeeId Int
+  employee   Employee                    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  pisFieldId Int
+  field      PisField                    @relation(fields: [pisFieldId], references: [id], onDelete: Cascade)
+  valueJson  Json
+  updatedAt  DateTime                    @updatedAt
+  updatedBy  Int?
+  createdAt  DateTime                    @default(now())
+  createdBy  Int                         @default(1)
+  histories  EmployeeFieldValueHistory[]
+
+  @@unique([employeeId, pisFieldId])
+}
+
+model EmployeeFieldValueHistory {
+  id                   Int                @id @default(autoincrement())
+  employeeFieldValueId Int
+  fieldValue           EmployeeFieldValue @relation(fields: [employeeFieldValueId], references: [id], onDelete: Cascade)
+  previousValueJson    Json
+  changedAt            DateTime           @default(now())
+  changedBy            Int?
+  changeReason         String?
+  createdAt            DateTime           @default(now())
+  createdBy            Int                @default(1)
+  updatedAt            DateTime           @updatedAt
+  updatedBy            Int                @default(1)
+
+  @@index([employeeFieldValueId, changedAt])
+}
+
+model EmployeeOnboardingRecord {
+  id                 Int       @id @default(autoincrement())
+  employeeId         Int
+  employee           Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  status             String
+  startDate          DateTime?
+  completedStepsJson Json?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  createdBy          Int       @default(1)
+  updatedAt          DateTime  @updatedAt
+  updatedBy          Int       @default(1)
+
+  @@index([employeeId, status])
+}
+
+model EmployeeOffboardingRecord {
+  id              Int       @id @default(autoincrement())
+  employeeId      Int
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reason          String
+  effectiveDate   DateTime?
+  clearanceStatus String
+  notes           String?
+  createdAt       DateTime  @default(now())
+  createdBy       Int       @default(1)
+  updatedAt       DateTime  @updatedAt
+  updatedBy       Int       @default(1)
+
+  @@index([employeeId, clearanceStatus])
+}
+
+model PafRecord {
+  id                Int                      @id @default(autoincrement())
+  employeeId        Int
+  employee          Employee                 @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approvalSetupId   Int?
+  approvalSetup     ApprovalSetup?           @relation(fields: [approvalSetupId], references: [id])
+  approvalRequestId Int?
+  approvalRequest   ApprovalRequest?         @relation(fields: [approvalRequestId], references: [id])
+  actionType        String
+  effectiveDate     DateTime
+  payloadJson       Json
+  status            String
+  submittedAt       DateTime?
+  appliedAt         DateTime?
+  createdAt         DateTime                 @default(now())
+  createdBy         Int                      @default(1)
+  updatedAt         DateTime                 @updatedAt
+  updatedBy         Int                      @default(1)
+  profileHistories  EmployeeProfileHistory[]
+  loaRecords        EmployeeLoaRecord[]
+}
+
+model EmployeeLoaRecord {
+  id                      Int        @id @default(autoincrement())
+  employeeId              Int
+  employee                Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  loaType                 String
+  startDate               DateTime
+  expectedReturnDate      DateTime?
+  actualReturnDate        DateTime?
+  pauseAccruals           Boolean    @default(true)
+  haltPayrollExpectations Boolean    @default(true)
+  pafRecordId             Int?
+  pafRecord               PafRecord? @relation(fields: [pafRecordId], references: [id])
+  notes                   String?
+  createdAt               DateTime   @default(now())
+  createdBy               Int        @default(1)
+  updatedAt               DateTime   @updatedAt
+  updatedBy               Int        @default(1)
+
+  @@index([employeeId, startDate, actualReturnDate])
+}
+
+model EmployeeProfileHistory {
+  id            Int        @id @default(autoincrement())
+  employeeId    Int
+  employee      Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  fieldName     String
+  previousValue String?
+  newValue      String?
+  effectiveDate DateTime?
+  changeSource  String
+  pafRecordId   Int?
+  pafRecord     PafRecord? @relation(fields: [pafRecordId], references: [id])
+  changeReason  String?
+  changedAt     DateTime   @default(now())
+  changedBy     Int?
+  createdAt     DateTime   @default(now())
+  createdBy     Int        @default(1)
+  updatedAt     DateTime   @updatedAt
+  updatedBy     Int        @default(1)
+
+  @@index([employeeId, changedAt])
+}
+
+model Formula {
+  id          Int              @id @default(autoincrement())
+  code        String           @unique
+  name        String
+  expression  String
+  description String?
+  status      String           @default("ACTIVE")
+  createdAt   DateTime         @default(now())
+  createdBy   Int              @default(1)
+  updatedAt   DateTime         @updatedAt
+  updatedBy   Int              @default(1)
+  versions    FormulaVersion[]
+}
+
+model FormulaVersion {
+  id                 Int                @id @default(autoincrement())
+  formulaId          Int
+  formula            Formula            @relation(fields: [formulaId], references: [id], onDelete: Cascade)
+  versionNo          String
+  expression         String
+  effectiveStartDate DateTime
+  effectiveEndDate   DateTime?
+  isCurrent          Boolean            @default(true)
+  changeSummary      String?
+  createdAt          DateTime           @default(now())
+  createdBy          Int                @default(1)
+  updatedAt          DateTime           @updatedAt
+  updatedBy          Int                @default(1)
+  earningComponents  EarningComponent[]
+
+  @@unique([formulaId, versionNo])
+  @@index([formulaId, isCurrent, effectiveStartDate])
+}
+
+model EarningComponent {
+  id                        Int                           @id @default(autoincrement())
+  code                      String                        @unique
+  name                      String
+  category                  String
+  valueSource               String
+  orgReferenceType          String?
+  fixedAmount               Decimal?                      @db.Decimal(15, 2)
+  formulaVersionId          Int?
+  formulaVersion            FormulaVersion?               @relation(fields: [formulaVersionId], references: [id])
+  lookupTableVersionId      Int?
+  isTaxableDefault          Boolean                       @default(true)
+  includeIn13thMonthDefault Boolean                       @default(true)
+  status                    String                        @default("ACTIVE")
+  isSystem                  Boolean                       @default(false)
+  description               String?
+  createdAt                 DateTime                      @default(now())
+  createdBy                 Int                           @default(1)
+  updatedAt                 DateTime                      @updatedAt
+  updatedBy                 Int                           @default(1)
+  revisionLines             EarningTemplateRevisionLine[]
+}
+
+model EarningTemplateFamily {
+  id                          Int                          @id @default(autoincrement())
+  baseEarningTemplateFamilyId Int?
+  baseFamily                  EarningTemplateFamily?       @relation("FamilyInheritance", fields: [baseEarningTemplateFamilyId], references: [id])
+  code                        String                       @unique
+  name                        String
+  templateKind                String
+  showInDefaultPicker         Boolean                      @default(true)
+  payBasisApplicability       String
+  status                      String                       @default("ACTIVE")
+  description                 String?
+  createdAt                   DateTime                     @default(now())
+  createdBy                   Int                          @default(1)
+  updatedAt                   DateTime                     @updatedAt
+  updatedBy                   Int                          @default(1)
+  childFamilies               EarningTemplateFamily[]      @relation("FamilyInheritance")
+  scopes                      EarningTemplateFamilyScope[]
+  revisions                   EarningTemplateRevision[]
+  payProfiles                 EmployeePayProfile[]
+}
+
+model EarningTemplateFamilyScope {
+  id                      Int                   @id @default(autoincrement())
+  earningTemplateFamilyId Int
+  family                  EarningTemplateFamily @relation(fields: [earningTemplateFamilyId], references: [id], onDelete: Cascade)
+  scopeType               String
+  scopeRefId              Int?
+  isPrimary               Boolean               @default(false)
+  notes                   String?
+  createdAt               DateTime              @default(now())
+  createdBy               Int                   @default(1)
+  updatedAt               DateTime              @updatedAt
+  updatedBy               Int                   @default(1)
+
+  @@index([scopeType, scopeRefId, isPrimary])
+}
+
+model EarningTemplateRevision {
+  id                      Int                           @id @default(autoincrement())
+  earningTemplateFamilyId Int
+  family                  EarningTemplateFamily         @relation(fields: [earningTemplateFamilyId], references: [id], onDelete: Cascade)
+  versionNo               String
+  currencyCode            String                        @default("PHP")
+  effectiveStartDate      DateTime
+  effectiveEndDate        DateTime?
+  isCurrent               Boolean                       @default(true)
+  changeSummary           String?
+  createdAt               DateTime                      @default(now())
+  createdBy               Int                           @default(1)
+  updatedAt               DateTime                      @updatedAt
+  updatedBy               Int                           @default(1)
+  lines                   EarningTemplateRevisionLine[]
+
+  @@unique([earningTemplateFamilyId, versionNo])
+  @@index([earningTemplateFamilyId, isCurrent, effectiveStartDate])
+}
+
+model EarningTemplateRevisionLine {
+  id                        Int                     @id @default(autoincrement())
+  earningTemplateRevisionId Int
+  revision                  EarningTemplateRevision @relation(fields: [earningTemplateRevisionId], references: [id], onDelete: Cascade)
+  earningComponentId        Int
+  component                 EarningComponent        @relation(fields: [earningComponentId], references: [id])
+  sortOrder                 Int                     @default(1)
+  isRequired                Boolean                 @default(true)
+  createdAt                 DateTime                @default(now())
+  createdBy                 Int                     @default(1)
+  updatedAt                 DateTime                @updatedAt
+  updatedBy                 Int                     @default(1)
+
+  @@unique([earningTemplateRevisionId, earningComponentId])
+}
+
+model EmployeePayProfile {
+  id                      Int                   @id @default(autoincrement())
+  employeeId              Int
+  employee                Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  earningTemplateFamilyId Int
+  family                  EarningTemplateFamily @relation(fields: [earningTemplateFamilyId], references: [id])
+  payScheduleId           Int?
+  approvalRequestId       Int?
+  approvalRequest         ApprovalRequest?      @relation(fields: [approvalRequestId], references: [id])
+  payBasis                String
+  effectiveStartDate      DateTime
+  effectiveEndDate        DateTime?
+  status                  String                @default("ACTIVE")
+  notes                   String?
+  createdAt               DateTime              @default(now())
+  createdBy               Int                   @default(1)
+  updatedAt               DateTime              @updatedAt
+  updatedBy               Int                   @default(1)
+
+  @@index([employeeId, status, effectiveStartDate])
+  @@index([earningTemplateFamilyId, status])
+}
+
+model ApprovalSetup {
+  id                  Int                  @id @default(autoincrement())
+  code                String               @unique
+  name                String
+  moduleKey           String
+  actionType          String
+  description         String?
+  status              String               @default("ACTIVE")
+  createdAt           DateTime             @default(now())
+  createdBy           Int                  @default(1)
+  updatedAt           DateTime             @updatedAt
+  updatedBy           Int                  @default(1)
+  sequences           ApproverSequence[]
+  workflowAssignments WorkflowAssignment[]
+  requests            ApprovalRequest[]
+  pafRecords          PafRecord[]
+}
+
+model ApproverSequence {
+  id                 Int                                 @id @default(autoincrement())
+  approvalSetupId    Int
+  approvalSetup      ApprovalSetup                       @relation(fields: [approvalSetupId], references: [id], onDelete: Cascade)
+  stepNo             Int
+  name               String
+  approverType       String?                             @default("USER")
+  approverRoleId     Int?
+  role               Role?                               @relation(fields: [approverRoleId], references: [id])
+  approverUserId     Int?
+  user               User?                               @relation(fields: [approverUserId], references: [id])
+  approverPositionId Int?
+  position           Position?                           @relation(fields: [approverPositionId], references: [id])
+  requiredApprovals  Int                                 @default(1)
+  isAutoApproved     Boolean                             @default(false)
+  createdAt          DateTime                            @default(now())
+  createdBy          Int                                 @default(1)
+  updatedAt          DateTime                            @updatedAt
+  updatedBy          Int                                 @default(1)
+  secondaryApprovers ApprovalSequenceSecondaryApprover[]
+  workflowSteps      ApprovalWorkflow[]
+
+  @@unique([approvalSetupId, stepNo])
+}
+
+model ApprovalSequenceSecondaryApprover {
+  id                 Int              @id @default(autoincrement())
+  approverSequenceId Int
+  approverSequence   ApproverSequence @relation(fields: [approverSequenceId], references: [id], onDelete: Cascade)
+  approverType       String?          @default("USER")
+  userId             Int?
+  user               User?            @relation(fields: [userId], references: [id])
+  roleId             Int?
+  role               Role?            @relation(fields: [roleId], references: [id])
+  positionId         Int?
+  position           Position?        @relation(fields: [positionId], references: [id])
+  createdAt          DateTime         @default(now())
+  createdBy          Int              @default(1)
+  updatedAt          DateTime         @updatedAt
+  updatedBy          Int              @default(1)
+
+  @@index([userId])
+  @@index([roleId])
+  @@index([positionId])
+}
+
+model ApprovalDelegation {
+  id         Int      @id @default(autoincrement())
+  fromUserId Int
+  fromUser   User     @relation("DelegationFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   Int
+  toUser     User     @relation("DelegationTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now())
+  createdBy  Int      @default(1)
+  updatedAt  DateTime @updatedAt
+  updatedBy  Int      @default(1)
+
+  @@index([fromUserId, toUserId, status, startDate, endDate])
+  @@index([toUserId, status, startDate, endDate])
+}
+
+model WorkflowAssignment {
+  id              Int           @id @default(autoincrement())
+  scopeType       String
+  scopeRefId      Int?
+  approvalSetupId Int
+  approvalSetup   ApprovalSetup @relation(fields: [approvalSetupId], references: [id], onDelete: Cascade)
+  priority        Int           @default(1)
+  isActive        Boolean       @default(true)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  createdBy       Int           @default(1)
+  updatedAt       DateTime      @updatedAt
+  updatedBy       Int           @default(1)
+
+  @@unique([scopeType, scopeRefId, approvalSetupId])
+  @@index([scopeType, scopeRefId, isActive, priority])
+}
+
+model ApprovalRequest {
+  id                Int                  @id @default(autoincrement())
+  approvalSetupId   Int
+  approvalSetup     ApprovalSetup        @relation(fields: [approvalSetupId], references: [id])
+  requestedByUserId Int?
+  requestedBy       User?                @relation(fields: [requestedByUserId], references: [id])
+  employeeId        Int?
+  employee          Employee?            @relation(fields: [employeeId], references: [id])
+  referenceType     String?
+  referenceId       Int?
+  status            String
+  currentStepNo     Int                  @default(1)
+  payloadJson       Json?
+  submittedAt       DateTime?
+  resolvedAt        DateTime?
+  createdAt         DateTime             @default(now())
+  createdBy         Int                  @default(1)
+  updatedAt         DateTime             @updatedAt
+  updatedBy         Int                  @default(1)
+  workflows         ApprovalWorkflow[]
+  pafRecords        PafRecord[]
+  payProfiles       EmployeePayProfile[]
+
+  @@index([employeeId, status])
+  @@index([requestedByUserId, status])
+  @@index([status, currentStepNo])
+  @@index([referenceType, referenceId])
+}
+
+model ApprovalWorkflow {
+  id                 Int                    @id @default(autoincrement())
+  approvalRequestId  Int
+  approvalRequest    ApprovalRequest        @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  approverSequenceId Int
+  approverSequence   ApproverSequence       @relation(fields: [approverSequenceId], references: [id])
+  approverUserId     Int?
+  approverUser       User?                  @relation(fields: [approverUserId], references: [id])
+  status             String
+  actedAt            DateTime?
+  comments           String?
+  createdAt          DateTime               @default(now())
+  createdBy          Int                    @default(1)
+  updatedAt          DateTime               @updatedAt
+  updatedBy          Int                    @default(1)
+  workflowNotes      ApprovalWorkflowNote[]
+
+  @@unique([approvalRequestId, approverSequenceId])
+  @@index([approvalRequestId, status])
+  @@index([approverUserId, status])
+}
+
+model ApprovalWorkflowNote {
+  id                 Int              @id @default(autoincrement())
+  approvalWorkflowId Int
+  approvalWorkflow   ApprovalWorkflow @relation(fields: [approvalWorkflowId], references: [id], onDelete: Cascade)
+  authorUserId       Int?
+  authorUser         User?            @relation(fields: [authorUserId], references: [id])
+  noteType           String
+  note               String
+  createdAt          DateTime         @default(now())
+  createdBy          Int              @default(1)
+  updatedAt          DateTime         @updatedAt
+  updatedBy          Int              @default(1)
+
+  @@index([approvalWorkflowId, createdAt])
+  @@index([authorUserId, createdAt])
+}

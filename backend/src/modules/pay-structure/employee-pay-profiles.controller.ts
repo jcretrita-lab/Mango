@@ -17,6 +17,8 @@ type PayStructureRequest = Request & {
   user?: AuthenticatedRequestUser;
 };
 
+type WriteBody = Record<string, unknown>;
+
 @Controller('pay-structure/employee-pay-profiles')
 export class EmployeePayProfilesController {
   constructor(
@@ -43,5 +45,15 @@ export class EmployeePayProfilesController {
       },
       request.user,
     );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.PAY_STRUCTURE_MANAGE)
+  @Patch(':id/end')
+  endPayProfile(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: PayStructureRequest,
+  ) {
+    return this.payProfilesService.endPayProfile(id, body, request.user);
   }
 }

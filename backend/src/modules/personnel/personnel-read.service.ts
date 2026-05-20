@@ -170,6 +170,18 @@ const resources = {
     readPermission: PERMISSION_CODES.PERSONNEL_READ,
     selfReadPermission: employeeSelfReadPermission,
     employeeReadScope: { field: 'employeeId' },
+    searchFields: ['actionType', 'status'],
+    filterFields: [
+      { query: 'employeeId', field: 'employeeId', type: 'number' },
+      { query: 'approvalSetupId', field: 'approvalSetupId', type: 'number' },
+      {
+        query: 'approvalRequestId',
+        field: 'approvalRequestId',
+        type: 'number',
+      },
+      'actionType',
+      'status',
+    ],
   },
   employeeProfileHistories: {
     model: 'employeeProfileHistory',

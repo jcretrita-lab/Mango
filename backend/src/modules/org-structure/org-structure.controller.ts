@@ -54,6 +54,43 @@ export class OrgStructureController {
     );
   }
 
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Post('company-profiles')
+  createCompanyProfile(
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.createCompanyProfile(body, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Patch('company-profiles/:id')
+  updateCompanyProfile(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.updateCompanyProfile(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Patch('company-profiles/:id/status')
+  updateCompanyProfileStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.updateCompanyProfileStatus(
+      id,
+      body,
+      request.user,
+    );
+  }
+
   @RequirePermissions(PERMISSION_CODES.ORG_READ)
   @Get('hierarchy-levels')
   findHierarchyLevels(
@@ -91,12 +128,48 @@ export class OrgStructureController {
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_READ)
+  @Get('org-units/as-of')
+  findOrgUnitsAsOf(
+    @Req() request: OrgStructureRequest,
+    @Query('date') date: string | undefined,
+  ) {
+    return this.orgStructureService.findOrgUnitsAsOf(date, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_READ)
   @Get('org-units/:id')
   findOrgUnit(
     @Param('id', ParseIntPipe) id: number,
     @Req() request: OrgStructureRequest,
   ) {
     return this.orgStructureService.findOne('orgUnits', id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_READ)
+  @Get('org-units/:id/children')
+  findOrgUnitChildren(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.findOrgUnitChildren(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_READ)
+  @Get('org-units/:id/ancestors')
+  findOrgUnitAncestors(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.findOrgUnitAncestors(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_READ)
+  @Get('org-units/:id/descendants')
+  findOrgUnitDescendants(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.findOrgUnitDescendants(id, request.user);
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_READ)
@@ -290,6 +363,12 @@ export class OrgStructureController {
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_READ)
+  @Get('positions/headcount-summary')
+  findPositionHeadcountSummary(@Query() query: ApiQuery) {
+    return this.orgStructureService.findPositionHeadcountSummary(query);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_READ)
   @Get('positions')
   findPositions(@Req() request: OrgStructureRequest, @Query() query: ApiQuery) {
     return this.orgStructureService.findAll(
@@ -358,6 +437,15 @@ export class OrgStructureController {
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Delete('hierarchy-levels/:id')
+  deleteHierarchyLevel(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.deleteHierarchyLevel(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
   @Post('sites')
   createSite(@Body() body: WriteBody, @Req() request: OrgStructureRequest) {
     return this.orgStructureService.createSite(body, request.user);
@@ -371,6 +459,16 @@ export class OrgStructureController {
     @Req() request: OrgStructureRequest,
   ) {
     return this.orgStructureService.updateSite(id, body, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Patch('sites/:id/status')
+  updateSiteStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.updateSiteStatus(id, body, request.user);
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
@@ -390,6 +488,30 @@ export class OrgStructureController {
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Patch('org-units/:id/status')
+  updateOrgUnitStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.updateOrgUnitStatus(id, body, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Patch('org-units/:id/head-position')
+  assignOrgUnitHeadPosition(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.assignOrgUnitHeadPosition(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
   @Post('org-units/:id/move')
   moveOrgUnit(
     @Param('id', ParseIntPipe) id: number,
@@ -397,6 +519,33 @@ export class OrgStructureController {
     @Req() request: OrgStructureRequest,
   ) {
     return this.orgStructureService.moveOrgUnit(id, body, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Post('org-units/:id/rebuild-closure')
+  rebuildOrgUnitClosure(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.rebuildOrgUnitClosure(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Delete('org-units/:id')
+  deleteOrgUnit(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.deleteOrgUnit(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Post('org-unit-versions')
+  createOrgUnitVersion(
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.createOrgUnitVersion(body, request.user);
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
@@ -416,6 +565,15 @@ export class OrgStructureController {
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Delete('ranks/:id')
+  deleteRank(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.deleteRank(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
   @Post('rank-levels')
   createRankLevel(
     @Body() body: WriteBody,
@@ -432,6 +590,15 @@ export class OrgStructureController {
     @Req() request: OrgStructureRequest,
   ) {
     return this.orgStructureService.updateRankLevel(id, body, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Delete('rank-levels/:id')
+  deleteRankLevel(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.deleteRankLevel(id, request.user);
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
@@ -458,6 +625,15 @@ export class OrgStructureController {
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Delete('position-templates/:id')
+  deletePositionTemplate(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.deletePositionTemplate(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
   @Post('position-profiles')
   createPositionProfile(
     @Body() body: WriteBody,
@@ -481,6 +657,47 @@ export class OrgStructureController {
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Delete('position-profiles/:id')
+  deletePositionProfile(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.deletePositionProfile(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Post('position-sub-levels')
+  createPositionSubLevel(
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.createPositionSubLevel(body, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Patch('position-sub-levels/:id')
+  updatePositionSubLevel(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.updatePositionSubLevel(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Delete('position-sub-levels/:id')
+  deletePositionSubLevel(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.deletePositionSubLevel(id, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
   @Post('positions')
   createPosition(@Body() body: WriteBody, @Req() request: OrgStructureRequest) {
     return this.orgStructureService.createPosition(body, request.user);
@@ -494,6 +711,29 @@ export class OrgStructureController {
     @Req() request: OrgStructureRequest,
   ) {
     return this.orgStructureService.updatePosition(id, body, request.user);
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Patch('positions/:id/supervisor')
+  updatePositionSupervisor(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: WriteBody,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.updatePositionSupervisor(
+      id,
+      body,
+      request.user,
+    );
+  }
+
+  @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)
+  @Delete('positions/:id')
+  deletePosition(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() request: OrgStructureRequest,
+  ) {
+    return this.orgStructureService.deletePosition(id, request.user);
   }
 
   @RequirePermissions(PERMISSION_CODES.ORG_MANAGE)

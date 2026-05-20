@@ -13,6 +13,7 @@ import { OrgStructureModule } from './modules/org-structure/org-structure.module
 import { PayStructureModule } from './modules/pay-structure/pay-structure.module';
 import { PersonnelModule } from './modules/personnel/personnel.module';
 import { RbacModule } from './modules/rbac/rbac.module';
+import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
 
 const phaseOneMountedModules = [
   RbacModule,
@@ -20,6 +21,7 @@ const phaseOneMountedModules = [
   PersonnelModule,
   PayStructureModule,
   ApprovalsModule,
+  SystemSettingsModule,
 ] as const;
 
 @Module({

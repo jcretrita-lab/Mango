@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma/client';
 import type { PermissionCode } from '../constants/permissions.constants';
 
 type ReadDelegateMethodName = 'findMany' | 'findFirst' | 'count';
@@ -41,6 +41,7 @@ export interface ReadFilterFieldDefinition {
   readonly query: string;
   readonly field: string;
   readonly jsonPath?: readonly string[];
+  readonly type?: 'string' | 'number' | 'boolean';
 }
 
 export type ReadFilterField = string | ReadFilterFieldDefinition;

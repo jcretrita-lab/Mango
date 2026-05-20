@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { projectApiRecord } from '../../common/api/response-projection';
 import type { AuthenticatedRequestUser } from '../../common/auth/auth.types';
 import { PHASE1_STATUS } from '../../common/constants/domain-status.constants';
@@ -258,6 +258,9 @@ export class ApprovalRequestsService {
           workflows: {
             where: { status: PHASE1_STATUS.PENDING },
             orderBy: { id: 'asc' },
+            include: {
+              approverSequence: true,
+            },
           },
         },
       });
@@ -301,6 +304,48 @@ export class ApprovalRequestsService {
           updatedBy: requestActor.backendUserId,
         },
       });
+
+      if (outcome === PHASE1_STATUS.APPROVED) {
+        const nextSequence = await tx.approverSequence.findFirst({
+          where: {
+            approvalSetupId: existingRequest.approvalSetupId,
+            stepNo: { gt: workflow.approverSequence.stepNo },
+          },
+          orderBy: { stepNo: 'asc' },
+        });
+
+        if (nextSequence) {
+          const updatedRequest = await tx.approvalRequest.update({
+            where: { id },
+            data: {
+              status: PHASE1_STATUS.PENDING,
+              currentStepNo: nextSequence.stepNo,
+              resolvedAt: null,
+              updatedBy: requestActor.backendUserId,
+            },
+          });
+
+          await tx.approvalWorkflow.create({
+            data: {
+              approvalRequestId: id,
+              approverSequenceId: nextSequence.id,
+              approverUserId: nextSequence.approverUserId,
+              status: PHASE1_STATUS.PENDING,
+              createdBy: requestActor.backendUserId,
+              updatedBy: requestActor.backendUserId,
+            },
+          });
+
+          await this.writeWorkflowAudit(
+            tx,
+            requestActor.backendUserId,
+            eventType,
+            id,
+          );
+
+          return updatedRequest;
+        }
+      }
 
       const updatedRequest = await tx.approvalRequest.update({
         where: { id },

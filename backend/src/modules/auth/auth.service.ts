@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { compare } from 'bcryptjs';
 import {
   buildAuthenticatedUser,
@@ -246,8 +246,13 @@ export class AuthService {
     credential: CredentialRecord,
     context: LoginRequestContext,
   ): Promise<void> {
-    // Increments failed attempts and locks the credential after repeated failures.
-    const failedLoginCount = credential.failedLoginCount + 1;
+    // Start a fresh failure window after a previous temporary lock has expired.
+    const previousLockExpired = Boolean(
+      credential.lockedUntil && credential.lockedUntil <= new Date(),
+    );
+    const failedLoginCount = previousLockExpired
+      ? 1
+      : credential.failedLoginCount + 1;
     const lockedUntil =
       failedLoginCount >= LOGIN_LOCK_THRESHOLD
         ? new Date(Date.now() + LOGIN_LOCK_MINUTES * 60 * 1000)
